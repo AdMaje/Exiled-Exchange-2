@@ -1,6 +1,6 @@
 # PoE2 MultiTool — Fork Notes
 
-> **Status:** Phase 0 (recon) complete. No feature code written yet.
+> **Status:** Phase 1 (dev environment + baseline) complete. No feature code written yet.
 > **Base:** `Kvan7/Exiled-Exchange-2` @ `cca30662` (v0.16.3, `master`).
 > **Our branch:** `multitool`. `master` mirrors upstream releases (see [UPSTREAM_SYNC.md](./UPSTREAM_SYNC.md)).
 > **Fork repo:** <https://github.com/AdMaje/Exiled-Exchange-2>
@@ -35,7 +35,8 @@ Verified on 2026-10-26 (Windows):
   (`npm.ps1`), so use **`npm.cmd`** (or `cmd /c npm ...`).
 - Two independent npm packages, no workspaces and no root `package.json`:
   `renderer/` and `main/`. Shared types live in `ipc/`.
-- `node_modules` are not installed yet (Phase 1).
+- `node_modules` are installed via `npm.cmd ci` in both packages (Phase 1). See §11 for
+  exact versions, results and the blocked install scripts.
 
 ```powershell
 # Renderer
@@ -69,6 +70,23 @@ npm.cmd run test               # renderer: vitest (CI runs it once)
 **Version consistency:** `versionCheck.py` (pre-commit) requires the same version in
 `README.md`, `.github/ISSUE_TEMPLATE/bug-report.yml`, `docs/.vitepress/config.js`,
 `main/package.json` and `main/package-lock.json`.
+
+**Line endings (Windows, mandatory):** this repository mixes committed line endings — most
+files are CRLF in the index, but some (`renderer/specs/web/FullCampaign.txt`, several
+`data/**` files) are LF. A Windows checkout with `core.autocrlf=true` converts the LF files
+to CRLF, which breaks the client-log test (the parser receives a trailing `\r`) and
+invalidates the byte offsets in `*.index.bin`. Set this once per clone **before** the first
+`make-index-files`:
+
+```powershell
+git config --local core.autocrlf false
+git config --local core.eol lf
+# force re-checkout of files whose index blob is LF (only these were converted)
+git ls-files --eol | Where-Object { $_ -match '^i/lf\s+w/crlf' }
+```
+
+Then re-run `npm.cmd run make-index-files` in `renderer`. CI runs on Linux (LF), so this
+only affects Windows development.
 
 ---
 
@@ -425,9 +443,81 @@ Quantified budget: Phase 2 touches **8** upstream files, all hooks, ~40 changed 
 | Phase | State | Notes |
 | --- | --- | --- |
 | 0 Recon | done | this doc, UPSTREAM_SYNC.md, DATA_SOURCES.md; remotes + `multitool` branch |
-| 1 Baseline | not started | install, build, tests, record results; env-only fixes |
+| 1 Baseline | done | env fixed (LF checkout), all lint/type/build checks green, 527/529 tests pass, dev + prod smoke OK; details below |
 | 2 Hub | not started | window, registry, tray/hotkey, routes, settings |
 | 3 Economy | not started | poe2scout provider, cache, chart, favorites |
 | 4 Guides | not started | markdown, search, checklists, user guide folder |
 | 5 Widgets | not started | countdown timers + zone/level tracker |
 | 6 Identity | not started | isolated rebrand commit, packaging, update feed |
+
+### Phase 1 — environment & baseline (2026-10-26)
+
+Toolchain: Windows, Node **v24.19.0**, npm **12.1.0** (via `npm.cmd`, see §2), git 2.55.0.
+Electron **40.10.2** binary present (`main/node_modules/electron/dist/electron.exe`).
+Install: `npm.cmd ci` in `renderer` → 377 packages; in `main` → 537 packages.
+Install scripts blocked by npm (not approved, not needed): `vue-demi@0.14.10` (×2),
+`unrs-resolver@1.11.1`.
+
+| Check | Command (from) | Result |
+| --- | --- | --- |
+| Index files | `npm.cmd run make-index-files` (`renderer`) | exit 0 |
+| Renderer lint | `npm.cmd run lint` | exit 0 |
+| Renderer types | `npm.cmd run check-types` | exit 0 |
+| Renderer tests | `npm.cmd run test -- --run` | **23 files, 527 passed, 2 skipped (529)**, exit 0 |
+| Renderer build | `npm.cmd run build` | exit 0; `dist/index.html` + 1.35 MB JS (chunk-size warning only) |
+| Main lint | `npm.cmd run lint` | exit 0 |
+| Main types | `npm.cmd run check-types` | exit 0 |
+| Main build | `npm.cmd run build` | exit 0; `dist/main.js` 474,884 B, `dist/vision.js` 48,554 B |
+
+**Environment fix 1 — CRLF vs LF.** The initial test run failed with
+`clientLog > Should parse full campaign client log` (`Host.sendEvent` never called). Cause:
+`core.autocrlf=true` had converted the LF fixture `renderer/specs/web/FullCampaign.txt` to
+CRLF; `split("\n")` left a trailing `\r`, so no log line matched the parser. This is a
+Windows checkout issue, not an upstream bug (CI is Linux and passes upstream). Fix: set
+`core.autocrlf=false` + `core.eol=lf` repo-local and re-checkout the 323 files whose index
+blob is LF (see §2). No source or test file was modified.
+
+**Environment fix 2 — stale index offsets.** After the line-ending fix, `*.index.bin` had
+been generated from CRLF `stats.ndjson`, so `JSON.parse` failed on every stat lookup
+(399 test failures). Re-running `make-index-files` after the checkout fixed it. Rule:
+regenerate index files after any line-ending change or upstream data update.
+
+**Dev-mode smoke test (no game).** `npm.cmd run dev` in `renderer` (Vite 5.4.21) and in
+`main` (esbuild watch + Electron), no game running:
+
+- `http://localhost:5173/` → 200, entry module `src/main.ts` → 200
+- `http://localhost:5173/config` via the Vite dev proxy → 200 (5,444 B JSON)
+- `ws://localhost:5173/events` handshake → `101 Switching Protocols`
+- 6 Electron processes alive, log shows `uIOhook started`, no errors in the main log
+- Note: Vite binds `localhost` on this machine; `127.0.0.1:5173` does **not** connect.
+
+**Production-mode smoke test (no game).** `npm.cmd run build` in `renderer` and `main`,
+then copy `renderer/dist/*` into `main/dist/` (packaging does this via electron-builder),
+then run
+`main\node_modules\electron\dist\electron.exe . --no-overlay --listen=127.0.0.1:8584 --no-updates`:
+
+- `/index.html` → 200, `/assets/index-*.js` → 200 (1,351,770 B),
+  `/data/en/app_i18n.json` → 200
+- `--no-overlay` opens the app in the default browser; Electron stayed alive, no errors
+- Without copying the renderer build into `main/dist`, only `/config` responds (the static
+  handler serves from `__dirname`, i.e. `main/dist`). That is expected for a source-tree
+  run, not a packaging bug. Copy step was temporary; `main/dist` was cleaned afterwards.
+
+**Pre-existing warnings (left alone — upstream):**
+
+- Vitest: `vi.mock("@/assets/client-string-loader")` in `specs/vitest.setup.ts` is not
+  top-level; vitest warns it will become an error in a future version.
+- Vite: `vite-tsconfig-paths` plugin is now native (`resolve.tsconfigPaths`).
+- Renderer bundle > 500 kB after minification; Electron deprecation notices for
+  `session.getAllExtensions` / `session.loadExtension`; `caniuse-lite` is 6 months old.
+
+**Not verified in Phase 1:**
+
+- In-game attach/focus/hotkey gating — no PoE2 client was running. The loaded config shows
+  the default `windowTitle: "Path of Exile 2"`; actual attach must be tested in Phase 2
+  (fallback QA path: browser + `?mt=hub`).
+- Installer/`electron-builder` packaging — deferred to Phase 6.
+- Runs read and migrate the real `%APPDATA%\exiled-exchange-2\apt-data\config.json`
+  (observed `configVersion: 34` → current schema 35). Keep that in mind for manual QA.
+
+**Decision:** baseline is green. No upstream file, test or fixture needed changes.

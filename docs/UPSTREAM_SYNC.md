@@ -161,6 +161,10 @@ Check specifically:
 
 ## 5. Required checks after every sync
 
+> Windows: verify `git config --get core.autocrlf` returns `false` **before** syncing.
+> A CRLF checkout breaks `client-log.test.ts` and the `*.index.bin` offsets; after any
+> re-checkout, re-run `make-index-files` (see `FORK_NOTES.md` §2).
+
 ```powershell
 cd renderer
 npm.cmd ci
