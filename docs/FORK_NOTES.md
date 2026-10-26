@@ -57,15 +57,9 @@ npm.cmd run build              # renderer: vue-tsc + vite; main: tsc + esbuild -
 npm.cmd run test               # renderer: vitest (CI runs it once)
 ```
 
-**Testing without the game running**
-
-- `--no-overlay` skips the overlay BrowserWindow and opens the app in the default browser.
-- `--listen=127.0.0.1:8584` gives a stable port (default is a random port in production).
-- The hub is planned to be reachable as `http://127.0.0.1:<port>/?mt=hub`, so it can be
-  tested in any Chromium browser without Electron or PoE2.
-- There is no mock mode for game data. Client.log events can be replayed by pointing
-  `clientLog` at a fixture file and replying to `CLIENT->MAIN::re-parse-log` (upstream
-  mechanism, used by `specs/web/FullCampaign.txt`).
+**Testing without the game:** see **How to run** below. There is no mock mode for game data.
+Client.log events can be replayed by pointing `clientLog` at a fixture file and replaying
+`CLIENT->MAIN::re-parse-log` (upstream mechanism, used by `specs/web/FullCampaign.txt`).
 
 **Version consistency:** `versionCheck.py` (pre-commit) requires the same version in
 `README.md`, `.github/ISSUE_TEMPLATE/bug-report.yml`, `docs/.vitepress/config.js`,
@@ -87,6 +81,158 @@ git ls-files --eol | Where-Object { $_ -match '^i/lf\s+w/crlf' }
 
 Then re-run `npm.cmd run make-index-files` in `renderer`. CI runs on Linux (LF), so this
 only affects Windows development.
+
+### How to run
+
+PowerShell commands for this Windows checkout. `$repo` keeps the paths copy-pasteable; set
+it again in each new terminal.
+
+Prerequisites (already done in Phase 1 — repeat after pulling or syncing):
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\renderer
+npm.cmd ci
+npm.cmd run make-index-files
+cd $repo\main
+npm.cmd ci
+```
+
+#### 1) Dev mode, overlay attached to PoE2
+
+Start PoE2 first. **Terminal A** (Vite):
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\renderer
+npm.cmd run dev
+```
+
+Wait for `VITE ... ready` and `http://localhost:5173/`.
+
+**Terminal B** (Electron):
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\main
+npm.cmd run dev
+```
+
+Wait for `uIOhook started`. Electron creates the overlay and attaches to the game window by
+title (`config.windowTitle`, default `Path of Exile 2`). Toggle the overlay with
+`Shift + Space`. Renderer edits hot-reload; main-process edits rebuild and restart Electron
+automatically. This is the mode for verifying in-game attach/focus/hotkey gating.
+
+`npm.cmd run dev` does **not** forward extra CLI arguments to Electron (the runner spawns
+`electron .` with no args), so `--no-overlay` / `--listen` require recipe 2.
+
+#### 2) Dev mode without the game (`--no-overlay`, browser)
+
+**Terminal A:** Vite, exactly as in recipe 1.
+
+**Terminal B:** build the dev main bundle once with the same defines as
+`main/build/script.mjs`, then start Electron with flags:
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\main
+
+@'
+const esbuild = require("esbuild");
+esbuild.build({
+  entryPoints: ["src/main.ts"],
+  bundle: true,
+  platform: "node",
+  external: ["electron", "uiohook-napi", "electron-overlay-window"],
+  outfile: "dist/main.js",
+  define: {
+    "process.env.STATIC": '"../build/icons"',
+    "process.env.VITE_DEV_SERVER_URL": '"http://localhost:5173"',
+  },
+}).catch((e) => { console.error(e); process.exit(1); });
+'@ | node -
+
+.\node_modules\electron\dist\electron.exe . --no-overlay --listen=127.0.0.1:8584 --no-updates
+```
+
+The app opens in your default browser at **http://localhost:5173/**. The Electron HTTP/WS
+server listens on `127.0.0.1:8584`, and Vite proxies `/config`, `/uploads`, `/proxy` and
+`/events` there. Keep the port at 8584 unless you also edit `renderer/vite.config.mts`.
+
+The esbuild step is one-shot (no watcher): re-run it after changing main-process code.
+Renderer changes still hot-reload in the browser.
+
+Simpler alternative if the exact flag does not matter: run `npm.cmd run dev` in `main` (as
+in recipe 1) and open `http://localhost:5173/` yourself. The extra overlay window just stays
+idle without the game.
+
+#### 3) Production build and run
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\renderer
+npm.cmd run build
+
+cd $repo\main
+npm.cmd run build
+
+# Source-tree run: put the renderer files at the app root, like electron-builder does.
+Copy-Item $repo\renderer\dist\* $repo\main\dist -Recurse -Force
+
+.\node_modules\electron\dist\electron.exe . --no-overlay --listen=127.0.0.1:8584 --no-updates
+```
+
+Opens **http://localhost:8584/index.html** in your default browser.
+
+Production with overlay (game running):
+
+```powershell
+$repo = "E:\Projekty\poe2 tool"
+cd $repo\main
+.\node_modules\electron\dist\electron.exe .
+```
+
+No browser opens; the overlay attaches to PoE2 and the server picks a random port (tray →
+**Open in Browser** → `http://localhost:<port>/`). A true end-user test needs
+`npm.cmd run package` or the installer (Phase 6).
+
+The `Copy-Item` step is only for running the production build from this source tree: the
+static handler serves from `main/dist`, so without `index.html` there only `/config`
+responds. Packaging handles this itself.
+
+#### Ports and URLs
+
+| Mode | Browser URL | Internal server |
+| --- | --- | --- |
+| Dev + overlay | none opened; overlay window loads `http://localhost:5173/` | `127.0.0.1:8584` |
+| Dev, `--no-overlay` | **http://localhost:5173/** | `127.0.0.1:8584` (Vite proxy target) |
+| Prod + overlay | tray → "Open in Browser" → `http://localhost:<random>/` | random port |
+| Prod, `--no-overlay --listen=127.0.0.1:8584` | **http://localhost:8584/index.html** | `127.0.0.1:8584` |
+| Packaged app + overlay | tray → "Open in Browser" → `http://localhost:<port>/` | random port |
+
+On this machine Vite binds `localhost` only — use `http://localhost:5173`, not
+`127.0.0.1:5173`. The Phase 2 hub will be reachable as
+`http://localhost:<port>/?mt=hub` (same server, no extra port).
+
+#### How to stop
+
+Close the app from the tray icon → **Quit**, or press Ctrl+C in each dev terminal. Then
+clear any survivors:
+
+```powershell
+Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+If a port is still held (Vite or a detached Electron child):
+
+```powershell
+Get-NetTCPConnection -LocalPort 5173,8584 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+Only one instance can run at a time: Electron's single-instance lock is tied to the app
+identity/user-data folder, and until the Phase 6 rebrand this fork shares the
+`exiled-exchange-2` identity with upstream EE2. Quit the other build first.
 
 ---
 
