@@ -211,8 +211,9 @@ responds. Packaging handles this itself.
 | Packaged app + overlay | tray → "Open in Browser" → `http://localhost:<port>/` | random port |
 
 On this machine Vite binds `localhost` only — use `http://localhost:5173`, not
-`127.0.0.1:5173`. The Phase 2 hub will be reachable as
-`http://localhost:<port>/?mt=hub` (same server, no extra port).
+`127.0.0.1:5173`. The hub runs on the same server, no extra port:
+`http://localhost:<port>/?mt=hub` (prod) or `http://localhost:5173/?mt=hub` (dev), and in
+the app via tray → **MultiTool Hub** or the `open-hub` hotkey.
 
 #### How to stop
 
@@ -379,15 +380,17 @@ Per-widget keys are stored on widget config and delivered as
 
 ### 5.1 Window
 
-- New **separate normal BrowserWindow** (`main/src/mt/HubWindow.ts`), not an overlay
+- New **separate normal BrowserWindow** (`main/src/mt/MtHubWindow.ts`), not an overlay
   widget. Standard frame, dark background, resizable, remembers bounds.
 - Loads the same renderer with `?mt=hub`; `renderer/src/main.ts` mounts
   `MtHubApp.vue` instead of the overlay app.
 - Works in a plain browser too (`?mt=hub`), which is our no-game QA path.
-- Opened from: tray item, and `open-hub` shortcut (game-active gated like all upstream
-  shortcuts). While the hub is visible, the same accelerator is registered only for that
-  window's lifetime so the hotkey can also close it; `Esc` and the window close button
-  always work. (Verify the registration race in Phase 2; fallback: hotkey = open only.)
+- Opened from: tray item **MultiTool Hub** (show/hide toggle) and the `open-hub` shortcut
+  action through the existing upstream pipeline (game-focus gated like every other
+  shortcut). While the hub itself is focused PoE2 is not, so the global shortcut is
+  unregistered; the hub therefore closes via a local keydown match of the same hotkey,
+  `Esc`, or the window close button. When the hub is open but another app is focused,
+  the hotkey brings it back to the front.
 
 ### 5.2 No WebSocket in the hub
 
@@ -397,6 +400,10 @@ would hijack `MAIN->CLIENT::item-text` and break price check. Therefore the hub:
 - **does not** call `Host.init()` and **does not** send `CLIENT->MAIN::used-recently`;
 - talks to main over small HTTP endpoints under `/mt/*`;
 - re-reads config on window focus (cheap, file-backed).
+
+Enforced in Phase 2: the hub has its own lazy entry chunk (`renderer/src/mt/bootstrap.ts`)
+that imports neither `web/background/IPC` nor `sockette`; the built chunk contains no
+`/events` or `ws://` reference.
 
 ### 5.3 Config & persistence (D7)
 
@@ -438,6 +445,20 @@ Main-side routes (new `main/src/mt/routes.ts`, registered before the static hand
 `PUT /mt/config` performs read-merge-write into `config.json` and then broadcasts
 `MAIN->CLIENT::config-changed`, so the overlay reloads immediately. The tiny race with a
 concurrent overlay save is accepted and documented; hub writes are small and infrequent.
+
+Implementation notes (Phase 2):
+
+- Writes are serialized inside `MtConfigStore` (one promise queue) so a hub save and a
+  window-bounds save cannot lose each other. The file is replaced atomically via
+  `<path>.mt-tmp` + rename, falling back to a direct write on Windows file locks.
+- Only the `mt` key is touched. Every other top-level key is read from disk and written
+  back unchanged (verified in the Phase 2 smoke test with a sentinel `overlayKey`).
+- The broadcast is only sent when the file already was a complete upstream config
+  (numeric `configVersion`). A bare `{ "mt": … }` file must not be pushed to the overlay.
+- Dev caveat: upstream `ConfigStore.save` is a no-op in dev, so the first hub save creates
+  a `config.json` containing only the `mt` subtree. `initConfig` merges upstream defaults
+  over a partial file (`{ ...defaultConfig(), ...parsed }`), so the overlay still starts
+  and the next overlay save writes a complete config including `mt`.
 
 ### 5.4 i18n (D5)
 
@@ -491,19 +512,20 @@ Source: <https://www.pathofexile.com/developer/docs> (checked 2026-10-26).
 
 ## 7. Touched upstream files
 
-**None modified yet** (Phase 0 only added docs + remotes). This table is the contract for
-later phases; keep it updated in the same commit as every new touch.
+**Phase 2 implemented all 8 hooks below** — +79/−3 lines across 8 files. Of the 79 added
+lines, 23 are `// MT:` markers/comments and 5 are blank, leaving ~51 code lines. This table
+is the contract for later phases; keep it updated in the same commit as every new touch.
 
-| # | Phase | File | Planned change (append-only) | Marker |
-| --- | --- | --- | --- | --- |
-| 1 | 2 | `renderer/src/main.ts` | branch on `?mt=hub` → MT bootstrap; keep default path byte-identical | `// MT:` |
-| 2 | 2 | `renderer/src/web/Config.ts` | `mt` interface + `defaultMtConfig()`; `config.mt ??= ...` at end of `upgradeConfig`; `mt.hubHotkey` → `open-hub` action in `getConfigForHost` | `// MT:` |
-| 3 | 2 | `ipc/types.ts` | add `{ type: "open-hub" }` to `ShortcutAction`; optional `mt` field in `HostConfig` if needed | `// MT:` |
-| 4 | 2 | `main/src/shortcuts/Shortcuts.ts` | handle `open-hub` (call hub module; no game input) | `// MT:` |
-| 5 | 2 | `main/src/main.ts` | construct MT hub/routes/hotkey module after server start | `// MT:` |
-| 6 | 2 | `main/src/AppTray.ts` | add "MultiTool Hub" menu item (+ separator placement) | `// MT:` |
-| 7 | 2 | `main/src/server.ts` | `addMtRoutes(server)` before the static-file listener | `// MT:` |
-| 8 | 2 | `renderer/vite.config.mts` | dev proxy `^/(config\|uploads\|proxy\|mt)` | `// MT:` |
+| # | Phase | File | Change (append-only) | Lines | Marker |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 2 | `renderer/src/main.ts` | `?mt=hub` → dynamic MT bootstrap, returns before upstream `initConfig`/`Host.init` | +9 | `// MT:` |
+| 2 | 2 | `renderer/src/web/Config.ts` | `mt?: MtConfig` + default; `config.mt ??=` in `upgradeConfig`; defaults-merge guard in `initConfig`; `mt.hubHotkey` → `open-hub` action | +20/−1 | `// MT:` |
+| 3 | 2 | `ipc/types.ts` | `{ type: "open-hub" }` added to `ShortcutAction` | +4 | `// MT:` |
+| 4 | 2 | `main/src/shortcuts/Shortcuts.ts` | `openHub` callback + `open-hub` branch (no game input, no clipboard) | +7 | `// MT:` |
+| 5 | 2 | `main/src/main.ts` | construct `MtHubWindow(port, mtStore)`, wire tray + `open-hub` callback | +14 | `// MT:` |
+| 6 | 2 | `main/src/AppTray.ts` | `openHub` field + "MultiTool Hub" menu item | +8 | `// MT:` |
+| 7 | 2 | `main/src/server.ts` | `addMtRoutes(server, broadcast)` before the static listener; exclude `/mt`; `config-changed` helper | +15/−1 | `// MT:` |
+| 8 | 2 | `renderer/vite.config.mts` | dev proxy `^/(config\|uploads\|proxy\|mt)` | +2/−1 | `// MT:` |
 | 9 | 3 | `main/src/proxy.ts` | whitelist `api.poe2scout.com`; per-host MT User-Agent | `// MT:` |
 | 10 | 5 | `renderer/src/web/overlay/widget-registry.ts` | register MT widget components (2 lines) | `// MT:` |
 | 11 | 5 | `renderer/src/web/Config.ts` | `getConfigForHost()` keys for MT widgets (small block) | `// MT:` |
@@ -515,7 +537,8 @@ later phases; keep it updated in the same commit as every new touch.
 | 17 | 6 | `README.md`, `docs/.vitepress/config.js`, `.github/ISSUE_TEMPLATE/bug-report.yml`, `versionCheck.py` | identity/version consistency | n/a |
 | 18 | 6 | `.github/workflows/*` | fork CI only (no upstream publishing) | n/a |
 
-Quantified budget: Phase 2 touches **8** upstream files, all hooks, ~40 changed lines total.
+Quantified budget: Phase 2 used **8** upstream files, **+79/−3** lines
+(~51 code + 23 comments/markers + 5 blank).
 
 ### Files we must NOT modify
 
@@ -590,7 +613,7 @@ Quantified budget: Phase 2 touches **8** upstream files, all hooks, ~40 changed 
 | --- | --- | --- |
 | 0 Recon | done | this doc, UPSTREAM_SYNC.md, DATA_SOURCES.md; remotes + `multitool` branch |
 | 1 Baseline | done | env fixed (LF checkout), all lint/type/build checks green, 527/529 tests pass, dev + prod smoke OK; details below |
-| 2 Hub | not started | window, registry, tray/hotkey, routes, settings |
+| 2 Hub | done | window, registry, tray/hotkey, `/mt` routes, settings; 25 new tests; in-game checklist pending |
 | 3 Economy | not started | poe2scout provider, cache, chart, favorites |
 | 4 Guides | not started | markdown, search, checklists, user guide folder |
 | 5 Widgets | not started | countdown timers + zone/level tracker |
@@ -667,3 +690,66 @@ then run
   (observed `configVersion: 34` → current schema 35). Keep that in mind for manual QA.
 
 **Decision:** baseline is green. No upstream file, test or fixture needed changes.
+
+### Phase 2 — MultiTool Hub (2026-10-27)
+
+Scope: hub window + module scaffold only. No Phase 3 (economy) code was started.
+Roadmap for Phases 2–6 lives in [PLAN.md](./PLAN.md).
+
+**Fork-owned files added**
+
+| Area | Files |
+| --- | --- |
+| Shared model | `ipc/mt.ts` (types, defaults, sanitizer/merge, hotkey helpers) |
+| Main | `main/src/mt/MtConfigStore.ts`, `main/src/mt/routes.ts`, `main/src/mt/MtHubWindow.ts` |
+| Hub renderer | `renderer/src/mt/bootstrap.ts`, `MtHubApp.vue`, `registry.ts`, `api.ts`, `mt.css`, `i18n/{en,pl,index}.ts`, `components/MtPlaceholderPanel.vue`, `components/MtSettingsPanel.vue`, `modules/{economy,guides,widgets}/*.vue` |
+| Tests | `renderer/specs/mt/{config,hotkey,i18n,registry}.spec.ts` + `helpers.ts` |
+
+**Behaviour implemented**
+
+- Hub is a normal sandboxed `BrowserWindow` loading `?mt=hub`; the renderer returns before
+  `initConfig()`/`Host.init()`, so it never opens `/events` and never sends `used-recently`.
+  Verified in the built chunk: the `bootstrap-*.js` chunk contains no `ws://`, `/events`
+  or `sockette`.
+- Registry-driven tabs (`economy`, `guides`, `widgets`) with lazy module components,
+  unknown-id fallback, and a gear view for settings.
+- Settings: language (`auto`/`en`/`pl`), hub hotkey (reuses upstream `HotkeyInput`), window
+  bounds. All persisted through `GET/PUT /mt/config`; no web storage anywhere.
+- Hub hotkey flows through the upstream `Shortcuts` pipeline as an `open-hub` action
+  (game-focus gated). Closing works via `Esc`, the close button, or the local keydown match.
+- `/mt/config` validates and merges only the `mt` subtree (unknown keys dropped, values
+  clamped) and preserves every other key in `config.json`; writes are serialized and
+  atomic (`.mt-tmp` + rename). A missing file is created as `{ "mt": … }`; an unreadable,
+  non-object or corrupt file is never overwritten (the route answers 500 instead).
+- The hub re-reads `/mt/config` when the window regains focus, so settings changed while
+  the window was hidden are picked up.
+
+| Check | Command (from) | Result |
+| --- | --- | --- |
+| Renderer lint | `npm.cmd run lint` (`renderer`) | exit 0 |
+| Renderer types | `npm.cmd run check-types` | exit 0 |
+| Renderer tests | `npm.cmd run test -- --run` | **27 files, 552 passed, 2 skipped (554)** — +25 new MT tests |
+| Renderer build | `npm.cmd run build` | exit 0; hub split into `bootstrap-*.js` (10.85 kB) + 3 module chunks + CSS |
+| Main lint / types / build | `npm.cmd run lint`, `check-types`, `build` (`main`) | exit 0 |
+| Prod route smoke | Electron with `--user-data-dir` temp, no game | GET defaults; PUT persists; bare `{mt}` create; sentinel `overlayKey`/`configVersion` preserved; `/?mt=hub` and `/index.html?mt=hub` → 200 HTML; 404/400 validation; invalid hotkey keeps previous |
+| Dev proxy smoke | Vite 5173 + Electron 8584 | `localhost:5173/mt/config` proxied; `/?mt=hub` 200; `src/mt/bootstrap.ts` 200 |
+
+**Manual in-game checklist (pending user)**
+
+1. Prod build with PoE2 running → tray shows **MultiTool Hub**; click opens a normal, framed,
+   dark window (not transparent, not attached to the game).
+2. Set a hub hotkey in Settings, focus PoE2, press it → hub opens; press it again with the
+   hub focused → hub closes; `Esc` and the close button also close it.
+3. Reopen from the tray → previous position/size are restored (move/resize first).
+4. Copy an item in game while the hub is open → price check still shows that item
+   (no WS `last-active` hijack).
+5. Tabs Economy / Guides / Widgets render placeholders; gear opens Settings.
+6. Switch EN ↔ PL → UI updates instantly; restart app → language persists.
+7. Set a hotkey owned by another app → hub still opens from the tray (upstream logs the
+   registration failure).
+8. Close and reopen the app → `config.json` still has all upstream settings/values intact
+   plus a populated `mt` subtree.
+9. Open `http://localhost:<port>/?mt=hub` in a plain browser → works; DevTools Network shows
+   no `/events` WebSocket; Application storage is empty.
+10. With PoE2 closed → tray opens the hub; the hub hotkey does nothing (expected, upstream
+    game-focus gating).

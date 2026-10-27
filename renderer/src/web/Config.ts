@@ -2,6 +2,8 @@ import { reactive as deepReactive, shallowRef, toRaw } from "vue";
 import isDeepEqual from "fast-deep-equal";
 import { Host } from "@/web/background/IPC";
 import { HostConfig, ShortcutAction } from "@ipc/types";
+// MT: fork-owned settings subtree (see ipc/mt.ts).
+import { defaultMtConfig, MtConfig } from "@ipc/mt";
 import type * as widget from "./overlay/widgets";
 import type { StashSearchWidget } from "./stash-search/widget";
 import type { ItemCheckWidget } from "./item-check/widget";
@@ -70,7 +72,10 @@ export async function initConfig() {
 
   let config: Config;
   try {
-    config = JSON.parse(contents);
+    // MT: the hub may create config.json holding only the `mt` subtree before
+    // the overlay ever saved a config; fill in upstream defaults instead of
+    // crashing on a partial file.
+    config = { ...defaultConfig(), ...(JSON.parse(contents) as Partial<Config>) };
   } catch {
     updateConfig(defaultConfig());
     saveConfig({ isTemporary: true });
@@ -154,6 +159,8 @@ export interface Config {
   alphas: Array<"library">;
   tipsFrequency: TipsFrequency;
   readClientLog: boolean; // default to false, opt-in only
+  // MT: fork-owned MultiTool settings, additive and versioned separately.
+  mt?: MtConfig;
 }
 
 export const defaultConfig = (): Config => ({
@@ -230,6 +237,7 @@ export const defaultConfig = (): Config => ({
   alphas: [],
   tipsFrequency: TipsFrequency.Normal,
   readClientLog: false, // default to false, opt-in only
+  mt: defaultMtConfig(), // MT: fork-owned settings subtree
 });
 
 function upgradeConfig(_config: Config): Config {
@@ -686,6 +694,9 @@ function upgradeConfig(_config: Config): Config {
   }
   /* eslint-enable */
 
+  // MT: fork-owned settings subtree; idempotent, no upstream configVersion bump.
+  config.mt ??= defaultMtConfig();
+
   return config as unknown as Config;
 }
 
@@ -711,6 +722,14 @@ function getConfigForHost(): HostConfig {
     shortcut: config.overlayKey,
     action: { type: "toggle-overlay" },
   });
+  // MT: hub hotkey; local window only, never sends input to the game.
+  const mt = config.mt ?? defaultMtConfig();
+  if (mt.hubHotkey) {
+    actions.push({
+      shortcut: mt.hubHotkey,
+      action: { type: "open-hub" },
+    });
+  }
   const itemCheck = AppConfig("item-check") as ItemCheckWidget;
   if (itemCheck.wikiKey) {
     actions.push({

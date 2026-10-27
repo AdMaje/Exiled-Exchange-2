@@ -4,6 +4,8 @@ import type { ServerEvents } from "./server";
 
 export class AppTray {
   public overlayKey = "Shift + Space";
+  // MT: hub opener, wired after the server picks a port.
+  public openHub: (() => void) | null = null;
   private tray: Tray;
   serverPort = 0;
 
@@ -48,6 +50,12 @@ export class AppTray {
         label: "Open in Browser",
         click: () => {
           shell.openExternal(`http://localhost:${this.serverPort}`);
+        },
+      },
+      {
+        label: "MultiTool Hub",
+        click: () => {
+          this.openHub?.();
         },
       },
       { type: "separator" },

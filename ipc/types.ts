@@ -39,6 +39,10 @@ export interface ShortcutAction {
     | {
         type: "toggle-overlay";
       }
+    // MT: opens the fork-owned MultiTool hub (local UI only, no game input).
+    | {
+        type: "open-hub";
+      }
     | {
         type: "paste-in-chat";
         text: string;

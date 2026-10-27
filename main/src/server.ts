@@ -10,19 +10,25 @@ import { ConfigStore } from "./host-files/ConfigStore";
 import { addFileUploadRoutes } from "./host-files/file-uploads";
 import type { AppUpdater } from "./AppUpdater";
 import type { Logger } from "./RemoteLogger";
+// MT: fork-owned hub HTTP routes.
+import { addMtRoutes } from "./mt/routes";
 
 export const server = createServer();
 const websocketServer = new WebSocketServer({ noServer: true });
 let lastActiveClient: WebSocket;
 
 addFileUploadRoutes(server);
+// MT: must be registered before the static-file listener below.
+addMtRoutes(server, broadcastMtConfigChanged);
 
 if (!process.env.VITE_DEV_SERVER_URL) {
   server.addListener("request", (req, res) => {
     if (
       req.url?.startsWith("/config") ||
       req.url?.startsWith("/uploads") ||
-      req.url?.startsWith("/proxy")
+      req.url?.startsWith("/proxy") ||
+      // MT: served by addMtRoutes.
+      req.url?.startsWith("/mt")
     )
       return;
 
@@ -77,6 +83,14 @@ export const eventPipe = {
   onEventAnyClient,
   sendEventTo,
 };
+
+// MT: notify the overlay after a hub config save so it reloads the new `mt`.
+function broadcastMtConfigChanged(contents: string) {
+  eventPipe.sendEventTo("broadcast", {
+    name: "MAIN->CLIENT::config-changed",
+    payload: { contents },
+  });
+}
 
 server.on("upgrade", (req, socket, head) => {
   if (req.url !== "/events") {

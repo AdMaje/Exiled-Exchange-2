@@ -11,6 +11,9 @@ import { GameConfig } from "./host-files/GameConfig";
 import { Shortcuts } from "./shortcuts/Shortcuts";
 import { AppUpdater } from "./AppUpdater";
 import { AppTray } from "./AppTray";
+// MT: fork-owned MultiTool hub window + its config store.
+import { MtHubWindow } from "./mt/MtHubWindow";
+import { mtStore } from "./mt/MtConfigStore";
 import { OverlayVisibility } from "./windowing/OverlayVisibility";
 import { GameLogWatcher } from "./host-files/GameLogWatcher";
 import { HttpProxy } from "./proxy";
@@ -26,6 +29,8 @@ if (process.platform !== "darwin") {
 }
 app.enableSandbox();
 let tray: AppTray;
+// MT: created once the server knows its port.
+let hub: MtHubWindow | undefined;
 
 (async () => {
   if (process.platform === "darwin") {
@@ -100,6 +105,10 @@ let tray: AppTray;
           poeWindow,
           gameConfig,
           eventPipe,
+          // MT: open-hub action -> local window only.
+          () => {
+            hub?.show();
+          },
         );
         eventPipe.onEventAnyClient(
           "CLIENT->MAIN::update-host-config",
@@ -127,6 +136,11 @@ let tray: AppTray;
         uIOhook.start();
         console.log("uIOhook started");
         const port = await startServer(appUpdater, logger);
+        // MT: hub entry points (tray item + `open-hub` shortcut).
+        hub = new MtHubWindow(port, mtStore);
+        tray.openHub = () => {
+          hub?.toggle();
+        };
         // TODO: move up (currently crashes)
         logger.write(`info ${os.type()} ${os.release} / v${app.getVersion()}`);
         overlay.loadAppPage(port);

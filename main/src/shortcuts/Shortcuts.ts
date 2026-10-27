@@ -34,6 +34,8 @@ export class Shortcuts {
     poeWindow: GameWindow,
     gameConfig: GameConfig,
     server: ServerEvents,
+    // MT: callback for the fork-owned `open-hub` action.
+    openHub: () => void,
   ) {
     const ocrWorker = await OcrWorker.create();
     const shortcuts = new Shortcuts(
@@ -43,6 +45,7 @@ export class Shortcuts {
       gameConfig,
       server,
       ocrWorker,
+      openHub,
     );
     return shortcuts;
   }
@@ -54,6 +57,7 @@ export class Shortcuts {
     private gameConfig: GameConfig,
     private server: ServerEvents,
     private ocrWorker: OcrWorker,
+    private openHub: () => void,
   ) {
     this.areaTracker = new WidgetAreaTracker(server, overlay);
     this.clipboard = new HostClipboard(logger);
@@ -203,6 +207,9 @@ export class Shortcuts {
           if (entry.action.type === "toggle-overlay") {
             this.areaTracker.removeListeners();
             this.overlay.toggleActiveState();
+          } else if (entry.action.type === "open-hub") {
+            // MT: local UI only; no game input and no clipboard access.
+            this.openHub();
           } else if (entry.action.type === "paste-in-chat") {
             typeInChat(entry.action.text, entry.action.send, this.clipboard);
           } else if (entry.action.type === "trigger-event") {

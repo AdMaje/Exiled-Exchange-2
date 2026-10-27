@@ -34,7 +34,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "^/(config|uploads|proxy)": { target: "http://127.0.0.1:8584" },
+      // MT: fork-owned hub routes live on the same main-process server.
+      "^/(config|uploads|proxy|mt)": { target: "http://127.0.0.1:8584" },
       "/events": { ws: true, target: "http://127.0.0.1:8584" },
     },
   },
