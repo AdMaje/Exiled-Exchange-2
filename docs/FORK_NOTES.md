@@ -168,6 +168,32 @@ idle without the game.
 
 #### 3) Production build and run
 
+Use the fork-owned script (it replaces the manual build/copy/launch sequence):
+
+```powershell
+# Overlay attached - Path of Exile 2 should be running.
+.\scripts\run-prod.ps1
+
+# No game: fixed server on 127.0.0.1:8584, prints the URLs to open.
+.\scripts\run-prod.ps1 -NoGame
+```
+
+`scripts/run-prod.ps1` runs `npm.cmd run build` in `renderer`, then in `main`, copies
+`renderer\dist\*` into `main\dist`, and launches
+`main\node_modules\electron\dist\electron.exe .` from `main`. It resolves every path from
+`$PSScriptRoot` (so the space in this repo path is fine), blocks until the app exits, and
+stops with an `ERROR: …` line and exit code 1 if a build, the copy or the launch fails.
+
+`-NoGame` adds `--no-overlay --listen=127.0.0.1:8584 --no-updates` and prints:
+
+- hub: **http://localhost:8584/index.html?mt=hub**
+- overlay: **http://localhost:8584/index.html**
+
+Both URLs are served by the app; `/?mt=hub` works too. A true end-user test needs
+`npm.cmd run package` or the installer (Phase 6).
+
+Manual equivalent, if you need to run one step yourself:
+
 ```powershell
 $repo = "E:\Projekty\poe2 tool"
 cd $repo\renderer
@@ -182,23 +208,13 @@ Copy-Item $repo\renderer\dist\* $repo\main\dist -Recurse -Force
 .\node_modules\electron\dist\electron.exe . --no-overlay --listen=127.0.0.1:8584 --no-updates
 ```
 
-Opens **http://localhost:8584/index.html** in your default browser.
+For overlay mode run the last command without the flags (game running): no browser opens,
+the overlay attaches to PoE2 and the server picks a random port (tray → **Open in Browser**
+→ `http://localhost:<port>/`).
 
-Production with overlay (game running):
-
-```powershell
-$repo = "E:\Projekty\poe2 tool"
-cd $repo\main
-.\node_modules\electron\dist\electron.exe .
-```
-
-No browser opens; the overlay attaches to PoE2 and the server picks a random port (tray →
-**Open in Browser** → `http://localhost:<port>/`). A true end-user test needs
-`npm.cmd run package` or the installer (Phase 6).
-
-The `Copy-Item` step is only for running the production build from this source tree: the
-static handler serves from `main/dist`, so without `index.html` there only `/config`
-responds. Packaging handles this itself.
+The copy step is only for running the production build from this source tree: the static
+handler serves from `main/dist`, so without `index.html` there only `/config` responds.
+Packaging handles this itself.
 
 #### Ports and URLs
 
@@ -206,8 +222,8 @@ responds. Packaging handles this itself.
 | --- | --- | --- |
 | Dev + overlay | none opened; overlay window loads `http://localhost:5173/` | `127.0.0.1:8584` |
 | Dev, `--no-overlay` | **http://localhost:5173/** | `127.0.0.1:8584` (Vite proxy target) |
-| Prod + overlay | tray → "Open in Browser" → `http://localhost:<random>/` | random port |
-| Prod, `--no-overlay --listen=127.0.0.1:8584` | **http://localhost:8584/index.html** | `127.0.0.1:8584` |
+| Prod, `run-prod.ps1` + overlay | tray → "Open in Browser" → `http://localhost:<random>/` | random port |
+| Prod, `run-prod.ps1 -NoGame` | **http://localhost:8584/index.html** (hub: `?mt=hub`) | `127.0.0.1:8584` |
 | Packaged app + overlay | tray → "Open in Browser" → `http://localhost:<port>/` | random port |
 
 On this machine Vite binds `localhost` only — use `http://localhost:5173`, not
@@ -217,8 +233,9 @@ the app via tray → **MultiTool Hub** or the `open-hub` hotkey.
 
 #### How to stop
 
-Close the app from the tray icon → **Quit**, or press Ctrl+C in each dev terminal. Then
-clear any survivors:
+Close the app from the tray icon → **Quit**, or press Ctrl+C in each dev terminal. The
+production script blocks until that happens and then returns to the prompt. Then clear any
+survivors:
 
 ```powershell
 Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -704,6 +721,7 @@ Roadmap for Phases 2–6 lives in [PLAN.md](./PLAN.md).
 | Main | `main/src/mt/MtConfigStore.ts`, `main/src/mt/routes.ts`, `main/src/mt/MtHubWindow.ts` |
 | Hub renderer | `renderer/src/mt/bootstrap.ts`, `MtHubApp.vue`, `registry.ts`, `api.ts`, `mt.css`, `i18n/{en,pl,index}.ts`, `components/MtPlaceholderPanel.vue`, `components/MtSettingsPanel.vue`, `modules/{economy,guides,widgets}/*.vue` |
 | Tests | `renderer/specs/mt/{config,hotkey,i18n,registry}.spec.ts` + `helpers.ts` |
+| Tooling | `scripts/run-prod.ps1` (build renderer + main, copy to `main\dist`, launch; `-NoGame`) |
 
 **Behaviour implemented**
 
@@ -733,6 +751,10 @@ Roadmap for Phases 2–6 lives in [PLAN.md](./PLAN.md).
 | Main lint / types / build | `npm.cmd run lint`, `check-types`, `build` (`main`) | exit 0 |
 | Prod route smoke | Electron with `--user-data-dir` temp, no game | GET defaults; PUT persists; bare `{mt}` create; sentinel `overlayKey`/`configVersion` preserved; `/?mt=hub` and `/index.html?mt=hub` → 200 HTML; 404/400 validation; invalid hotkey keeps previous |
 | Dev proxy smoke | Vite 5173 + Electron 8584 | `localhost:5173/mt/config` proxied; `/?mt=hub` 200; `src/mt/bootstrap.ts` 200 |
+| Prod script smoke | `.\scripts\run-prod.ps1 -NoGame` | renderer + main builds green, copy green, server on 8584; `/mt/config` 200; `/?mt=hub` and `/index.html?mt=hub` 200; Electron probe of the hub URL rendered `PoE2 MultiTool`, nav Economy/Guides/Widgets/Settings and the Economy placeholder |
+
+**Follow-up (same phase):** `scripts/run-prod.ps1` wraps the manual build/copy/launch
+sequence from §2.3 and adds `-NoGame`; no app code changed for it.
 
 **Manual in-game checklist (pending user)**
 
