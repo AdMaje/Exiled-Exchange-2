@@ -1,6 +1,8 @@
 # PoE2 MultiTool — Fork Notes
 
-> **Status:** Phase 1 (dev environment + baseline) complete. No feature code written yet.
+> **Status:** Phases 1–5 complete (hub, economy, guides, overlay widgets). Phase 6
+> (identity/packaging) not started.
+> **Last updated:** 2026-10-28.
 > **Base:** `Kvan7/Exiled-Exchange-2` @ `cca30662` (v0.16.3, `master`).
 > **Our branch:** `multitool`. `master` mirrors upstream releases (see [UPSTREAM_SYNC.md](./UPSTREAM_SYNC.md)).
 > **Fork repo:** <https://github.com/AdMaje/Exiled-Exchange-2>
@@ -436,6 +438,8 @@ No `configVersion` bump; `upgradeConfig()` gets one idempotent block:
   "hub": { "width": 1100, "height": 760, "x": null, "y": null },
   "economy": {
     "source": "poe2scout",
+    "realm": null,                   // resolved from /Realms (GameApiId === "poe2")
+    "league": null,                  // resolved from /{realm}/Leagues
     "referenceCurrency": null,       // null = API default / EE2 core currency
     "favorites": [],                 // [{ "apiId": 123, "name": "Divine Orb" }]
     "lastCategory": "currency"
@@ -457,7 +461,10 @@ Main-side routes (new `main/src/mt/routes.ts`, registered before the static hand
 | `PUT /mt/config` | validate, merge **only** `mt`, atomic write, broadcast `config-changed` |
 | `GET /mt/cache/:key` | cached payload + `savedAt` |
 | `PUT /mt/cache/:key` | write payload (size-capped) |
-| Phase 4: `GET /mt/guides/index.json`, `GET/PUT /mt/guides/:slug.md` | user guides |
+| `GET /mt/guides/index.json` | index of user-authored guides |
+| `GET/PUT /mt/guides/:slug.md` | read or write one user guide |
+| `POST /mt/guides/reveal.json` | open the user guide folder |
+| `POST /mt/guides/:slug.md/reveal.json` | reveal one user guide |
 
 `PUT /mt/config` performs read-merge-write into `config.json` and then broadcasts
 `MAIN->CLIENT::config-changed`, so the overlay reloads immediately. The tiny race with a
@@ -499,7 +506,59 @@ export const mtModules: MtModule[] = [ /* one entry per module */ ];
 ```
 
 Adding a module = one entry + one component. Tabs are derived from this list; unknown ids
-fall back to the first module. Phase 2 ships placeholder tabs.
+fall back to the first module. All three tabs are implemented (Phases 3–5) and their
+components are lazy-loaded.
+
+### 5.6 Economy (Phase 3)
+
+- Provider, cache, queue and UI live in `renderer/src/mt/economy/`; no upstream price-check
+  or trade code is imported.
+- Realms/leagues/categories/reference currencies are discovered at runtime. Realm path is
+  the provider's `RealmApiId` (`poe2`), selected by `GameApiId === "poe2"`.
+- **Deviation:** the hub does not call upstream `useLeagues()`; that module imports the
+  overlay config/widget registry and `sockette`. The league list comes from poe2scout and
+  the selected league/EE2 league is used only as a preferred default.
+- `ByCategory` only accepts `dataPoints` 7 or 8. The 7-day chart uses the daily `PriceLogs`
+  from the table payload; 30/90 days use `Items/{itemId}/History` hourly points (720/2160).
+- One in-flight request, ≥1 s spacing, exponential backoff, `Retry-After` honored
+  (longer than 60 s aborts instead of freezing the UI). Upstream trade `RateLimiter` is
+  untouched.
+- All HTTP goes through `/proxy/api.poe2scout.com`; `main/src/proxy.ts` adds the host and a
+  contactable UA only for that host.
+- Cache is file-backed (`multitool/cache/*.json`), conditionally revalidated with
+  `If-Modified-Since`, and always renders `savedAt` plus an offline/stale badge.
+- Tests use recorded fixtures under `renderer/specs/mt/economy/fixtures/` and never touch
+  the network.
+
+### 5.7 Guides (Phase 4)
+
+- User guides are `%APPDATA%\<userData>\multitool\guides\<slug>.md`; the main process
+  (`main/src/mt/guides.ts`) enforces a slug whitelist (`^[a-z0-9][a-z0-9-_]{0,63}$`),
+  256 KB cap, `.md` only and traversal-free paths. Writes are atomic.
+- The main process only lists user guides; the renderer merges bundled guides (Vite `?raw`)
+  and lets a user guide override the same slug.
+- Shared frontmatter parser/bitmask helpers live in `ipc/mtGuides.ts`; checklist progress is
+  one integer bitmask per slug in `mt.guides.progress` (max 50 tasks).
+- `markdown-it` (HTML disabled) is the only new renderer dependency; guides/link/images are
+  sanitized (`target=_blank`, `rel=noopener noreferrer`, lazy images, no referrer).
+- Search covers title, tags and body; the editor and reveal/open-folder actions go through
+  `/mt/guides/*` routes.
+
+### 5.8 Overlay widgets (Phase 5)
+
+- `renderer/src/mt/widgets/` (fork-owned) provides:
+  - `mt-countdown` — multi-instance, manual local timer with label, duration, progress bar,
+    start/pause/reset. It is display-only: no log trigger, no game input. Runtime progress
+    is not persisted; label/duration/position are part of the widget config.
+  - `mt-zone-tracker` — single-instance tracker showing the raw area id plus area/player
+    level, using the existing `useClientLog()` refs. No second Client.txt watcher. When
+    `readClientLog` is off it shows an enable hint.
+- Registration is two `// MT:` blocks in `widget-registry.ts`; settings panels are hooked in
+  `SettingsWindow.vue#menuByType`. `Config.ts#upgradeConfig` inserts the missing single
+  zone-tracker widget idempotently.
+- The add-menu labels are literal `trNameKey` strings ("MT Countdown", "MT Zone Tracker");
+  no upstream locale file is edited. Fork widgets translate through
+  `renderer/src/mt/widgets/i18n.ts`, which reads `mt.language` and the fork EN/PL messages.
 
 ---
 
@@ -529,9 +588,10 @@ Source: <https://www.pathofexile.com/developer/docs> (checked 2026-10-26).
 
 ## 7. Touched upstream files
 
-**Phase 2 implemented all 8 hooks below** — +79/−3 lines across 8 files. Of the 79 added
-lines, 23 are `// MT:` markers/comments and 5 are blank, leaving ~51 code lines. This table
-is the contract for later phases; keep it updated in the same commit as every new touch.
+**Phases 2–5 touch 11 unique upstream files** — cumulative **+109/−4** lines. Phase 2 used
+8 files (+79/−3). Phases 3–5 used 4 file touches (+30/−1): 17 code lines and 13
+`// MT:` comments/markers, no blank lines, inside the ~40-line budget. This table is the
+contract for later phases; keep it updated in the same commit as every new touch.
 
 | # | Phase | File | Change (append-only) | Lines | Marker |
 | --- | --- | --- | --- | --- | --- |
@@ -543,10 +603,10 @@ is the contract for later phases; keep it updated in the same commit as every ne
 | 6 | 2 | `main/src/AppTray.ts` | `openHub` field + "MultiTool Hub" menu item | +8 | `// MT:` |
 | 7 | 2 | `main/src/server.ts` | `addMtRoutes(server, broadcast)` before the static listener; exclude `/mt`; `config-changed` helper | +15/−1 | `// MT:` |
 | 8 | 2 | `renderer/vite.config.mts` | dev proxy `^/(config\|uploads\|proxy\|mt)` | +2/−1 | `// MT:` |
-| 9 | 3 | `main/src/proxy.ts` | whitelist `api.poe2scout.com`; per-host MT User-Agent | `// MT:` |
-| 10 | 5 | `renderer/src/web/overlay/widget-registry.ts` | register MT widget components (2 lines) | `// MT:` |
-| 11 | 5 | `renderer/src/web/Config.ts` | `getConfigForHost()` keys for MT widgets (small block) | `// MT:` |
-| 12 | 5 | `renderer/src/web/settings/SettingsWindow.vue` | add MT widget settings panels in `menuByType()` (if needed) | `// MT:` |
+| 9 | 3 | `main/src/proxy.ts` | whitelist `api.poe2scout.com`; per-host MT User-Agent | +12/−1 | `// MT:` |
+| 10 | 5 | `renderer/src/web/overlay/widget-registry.ts` | import + register the two MT widget components | +6 | `// MT:` |
+| 11 | 5 | `renderer/src/web/Config.ts` | `ensureMtSingleWidgets()` import and idempotent call in `upgradeConfig` | +4 | `// MT:` |
+| 12 | 5 | `renderer/src/web/settings/SettingsWindow.vue` | import MT settings panels + `menuByType` cases | +8 | `// MT:` |
 | 13 | 6 | `main/package.json`, `main/package-lock.json` | name/appId/update feed (isolated identity commit) | n/a (JSON) |
 | 14 | 6 | `main/electron-builder.yml` | `appId`, `productName`, artifacts, publisher | n/a (YAML) |
 | 15 | 6 | `main/src/AppTray.ts` | new product name/tooltip | `// MT:` |
@@ -554,8 +614,9 @@ is the contract for later phases; keep it updated in the same commit as every ne
 | 17 | 6 | `README.md`, `docs/.vitepress/config.js`, `.github/ISSUE_TEMPLATE/bug-report.yml`, `versionCheck.py` | identity/version consistency | n/a |
 | 18 | 6 | `.github/workflows/*` | fork CI only (no upstream publishing) | n/a |
 
-Quantified budget: Phase 2 used **8** upstream files, **+79/−3** lines
-(~51 code + 23 comments/markers + 5 blank).
+Quantified budget: Phases 3–5 used **4** upstream file touches, **+30/−1** lines
+(17 code + 13 comments/markers), inside the ~40-line limit. Phase 2 remains **+79/−3**;
+the cumulative Phase 2–5 upstream diff is **+109/−4** across 11 unique files.
 
 ### Files we must NOT modify
 
@@ -617,9 +678,11 @@ Quantified budget: Phase 2 used **8** upstream files, **+79/−3** lines
    attach to the game window; for UI testing only.
 7. `docs/` Pages workflow hardcodes base `/Exiled-Exchange-2/`; fix or disable in Phase 6.
 8. `poe2scout` has no published rate limits; treat it conservatively and cache.
-9. Zone display names are not available from `Client.txt`; tracker shows zone id + area
-   level (optional curated name map later, never hardcoded game data dependencies).
-10. Phase 6 rebrand changes `userData`; verify real path before/after and document a
+9. Zone tracker shows the raw area id from `Client.txt` (towns/hideouts are skipped by the
+   shared parser) plus area/player level. There is no curated display-name map yet.
+10. Countdown state is runtime-only: an overlay reload or app restart resets it to its
+    configured duration. Both MT widgets are display-only and never send game input.
+11. Phase 6 rebrand changes `userData`; verify real path before/after and document a
     migration/notice (no silent data move).
 
 ---
@@ -631,9 +694,9 @@ Quantified budget: Phase 2 used **8** upstream files, **+79/−3** lines
 | 0 Recon | done | this doc, UPSTREAM_SYNC.md, DATA_SOURCES.md; remotes + `multitool` branch |
 | 1 Baseline | done | env fixed (LF checkout), all lint/type/build checks green, 527/529 tests pass, dev + prod smoke OK; details below |
 | 2 Hub | done | window, registry, tray/hotkey, `/mt` routes, settings; 25 new tests; in-game checklist pending |
-| 3 Economy | not started | poe2scout provider, cache, chart, favorites |
-| 4 Guides | not started | markdown, search, checklists, user guide folder |
-| 5 Widgets | not started | countdown timers + zone/level tracker |
+| 3 Economy | done | poe2scout provider, cache, chart, favorites; 41 new tests |
+| 4 Guides | done | bundled + user Markdown, search, checklist bitmask; 16 new tests |
+| 5 Widgets | done | countdown + zone tracker, settings panels; 12 new tests |
 | 6 Identity | not started | isolated rebrand commit, packaging, update feed |
 
 ### Phase 1 — environment & baseline (2026-10-26)
@@ -765,7 +828,7 @@ sequence from §2.3 and adds `-NoGame`; no app code changed for it.
 3. Reopen from the tray → previous position/size are restored (move/resize first).
 4. Copy an item in game while the hub is open → price check still shows that item
    (no WS `last-active` hijack).
-5. Tabs Economy / Guides / Widgets render placeholders; gear opens Settings.
+5. Tabs Economy / Guides / Widgets render (Phase 2 shipped placeholders); gear opens Settings.
 6. Switch EN ↔ PL → UI updates instantly; restart app → language persists.
 7. Set a hotkey owned by another app → hub still opens from the tray (upstream logs the
    registration failure).
@@ -775,3 +838,118 @@ sequence from §2.3 and adds `-NoGame`; no app code changed for it.
    no `/events` WebSocket; Application storage is empty.
 10. With PoE2 closed → tray opens the hub; the hub hotkey does nothing (expected, upstream
     game-focus gating).
+
+### Phase 3 — Economy (2026-10-28)
+
+Scope: poe2scout-backed economy tab only. No guides or overlay-widget code was started.
+
+**Fork-owned files added**
+
+| Area | Files |
+| --- | --- |
+| Economy core | `renderer/src/mt/economy/{provider,cache,queue,store}.ts`, `MtCurrencyTable.vue`, `MtPriceChart.vue` |
+| Main | `main/src/mt/cache.ts`; cache routes in `main/src/mt/routes.ts`; upstream proxy hook |
+| Hub shell | `renderer/src/mt/api.ts` cache helpers, `MtHubApp.vue` module wiring, EN/PL strings |
+| Tests + fixtures | `renderer/specs/mt/economy/{provider,cache,queue}.spec.ts`, `renderer/specs/mt/economy/fixtures/*` |
+| Config | `ipc/mt.ts` economy sanitizer, `renderer/specs/mt/config.spec.ts` |
+
+**Behaviour implemented**
+
+- Runtime discovery of realms (`GameApiId === "poe2"` → `RealmApiId`), leagues, categories
+  (`Items/Categories` → `CurrencyCategories[].ApiId`) and reference currencies. Nothing is
+  hardcoded; the last selection is stored in `mt.economy`.
+- Currency table with pagination, search, reference-currency switch and favorites; manual
+  refresh only, no polling while the hub is closed.
+- Offline/stale badge plus `savedAt` age; file cache survives restarts and port changes.
+- 7d/30d/90d chart. `ByCategory` accepts only 7 or 8 `dataPoints`: 7d reads daily
+  `PriceLogs` from the table, 30d/90d read hourly `Items/{itemId}/History`. Pair history was
+  empty for every attempted id and is unused (see DATA_SOURCES §2.3).
+- Queue: one in-flight request, ≥1 s spacing, 3 retries with 2/4/8 s backoff, `Retry-After`
+  honored (values over 60 s abort). Completely separate from upstream trade `RateLimiter`.
+- Conditional requests (`If-Modified-Since`) reuse the cached payload on 304.
+- No upstream `useLeagues()` in the hub: it pulls in the overlay config, widget registry and
+  `sockette`; leagues come from the provider instead (documented deviation).
+
+| Check | Command (from) | Result |
+| --- | --- | --- |
+| Renderer lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0 |
+| Renderer tests | `npm.cmd run test` | **30 files, 593 passed, 2 skipped (595)** — +41 tests |
+| Main lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0 |
+
+No network is used by the tests; fixtures were recorded once (2026-10-28) with `.meta.json`
+request metadata.
+
+### Phase 4 — Guides (2026-10-28)
+
+Scope: local Markdown guides and persisted checklists.
+
+**Fork-owned files added**
+
+| Area | Files |
+| --- | --- |
+| Shared helpers | `ipc/mtGuides.ts` (frontmatter, slug, task bitmask, starter template) |
+| Main | `main/src/mt/guides.ts`; guide routes + error mapping in `main/src/mt/routes.ts` |
+| Hub renderer | `renderer/src/mt/guides/{api,catalog,markdown,store}.ts`, `modules/guides/GuidesModule.vue` |
+| Content | `renderer/src/mt/content/guides/*.md` (3 original sample guides) |
+| Tests | `renderer/specs/mt/guides.spec.ts` (16 new tests) |
+
+**Behaviour implemented**
+
+- Bundled guides are imported with Vite `?raw`; user guides are listed/read/written through
+  `/mt/guides/*`. A user guide overrides a bundled guide with the same slug.
+- Slug whitelist, `.md` only, 256 KB cap, atomic writes and traversal-free paths; missing or
+  locked user files are skipped instead of breaking the list.
+- Tiny frontmatter parser (title/tags), search over title/tags/body.
+- Checklists are detected from `- [ ]` items; state is one integer bitmask per slug in
+  `mt.guides.progress` (max 50 tasks, arithmetic bits, not JS bitwise).
+- `markdown-it` 14.1.0 (+`@types/markdown-it`) is the only new dependency. HTML is disabled,
+  links get `target=_blank rel=noopener noreferrer`, images are lazy/no-referrer. Justified
+  because upstream has no Markdown renderer and hand-rolling one is riskier.
+- EN/PL strings for search, editor, progress, errors and reveal actions.
+
+| Check | Command (from) | Result |
+| --- | --- | --- |
+| Renderer lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0; guides chunk 112 kB (lazy) |
+| Renderer tests | `npm.cmd run test` | **31 files, 609 passed, 2 skipped (611)** — +16 tests |
+| Main lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0 |
+
+### Phase 5 — Overlay widgets (2026-10-28)
+
+Scope: two native overlay widgets and their settings panels.
+
+**Fork-owned files added**
+
+| Area | Files |
+| --- | --- |
+| Widget model + i18n | `renderer/src/mt/widgets/{types,messages,i18n}.ts` |
+| Widgets | `renderer/src/mt/widgets/{WidgetMtCountdown,WidgetMtZoneTracker}.vue` |
+| Settings | `renderer/src/mt/widgets/{SettingsMtCountdown,SettingsMtZoneTracker}.vue` |
+| Hub tab | `renderer/src/mt/modules/widgets/WidgetsModule.vue`, EN/PL strings |
+| Tests | `renderer/specs/mt/widgets.spec.ts` (12 tests) |
+
+**Behaviour implemented**
+
+- `mt-countdown` (multi): manual start/pause/reset, configurable label/duration, optional
+  progress bar. Display-only; no log trigger and no game input. Runtime progress resets on
+  overlay reload; config (label/id/duration/position) persists in the widget entry.
+- `mt-zone-tracker` (single): raw area id + area level + player level from the existing
+  `useClientLog()` refs; shows an enable hint when `readClientLog` is off. No second watcher.
+  Towns/hideouts remain skipped by the upstream parser (documented limitation).
+- Settings panels are registered through `SettingsWindow.vue#menuByType`; `Edit` on the
+  widget opens them (`inline-edit=false`).
+- `upgradeConfig()` inserts the missing single zone tracker idempotently; new configs get it
+  from `initInstance`. The countdown is added from the overlay widget menu.
+- Menu labels use literal `trNameKey` strings; no upstream locale edits.
+- Upstream touches: `widget-registry.ts` (+6), `Config.ts` (+4), `SettingsWindow.vue` (+8).
+  See §7 for the combined budget.
+
+| Check | Command (from) | Result |
+| --- | --- | --- |
+| Renderer lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0 |
+| Renderer tests | `npm.cmd run test` | **32 files, 621 passed, 2 skipped (623)** — +12 tests |
+| Main lint / types / build | `npm.cmd run lint`, `check-types`, `build` | exit 0 |
+
+**Manual verification pending user:** add/move/edit/delete a countdown; reload and confirm
+position and label persist; start/pause/reset accuracy; enable the zone tracker and enter a
+new area; confirm no keystrokes reach the game and price check still works. The consolidated
+checklist is in the Phase 5 delivery message.

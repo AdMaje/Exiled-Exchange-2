@@ -1,7 +1,7 @@
 # Data Sources
 
 Decisions and verified facts for every external data source used by PoE2 MultiTool modules.
-Checked on **2026-10-26**. Re-verify before each release or when a provider changes.
+Checked on **2026-10-28**. Re-verify before each release or when a provider changes.
 
 Golden rule: **if we cannot point to a public API or a permission, we do not fetch it.**
 When in doubt, link out to the site instead of scraping it.
@@ -16,7 +16,7 @@ When in doubt, link out to the site instead of scraping it.
 | **poe.ninja** | Deep links only ("open on poe.ninja") | User browser | **No fetching** (ToS) |
 | **GGG trade API** (`pathofexile.com/api/trade2`) | Price check / bulk (upstream only) | Upstream code, unchanged | Do not extend |
 | **EE2 aggregator** (`api.exiledexchange2.dev`) | Upstream price-check data | Upstream code, unchanged | Do not extend |
-| `Client.txt` | Zone/level tracker | Upstream `GameLogWatcher` | Reuse |
+| `Client.txt` | Zone/level tracker | Upstream `GameLogWatcher` + `useClientLog()` | Reuse (single watcher) |
 | Clipboard | Price check item text | Upstream | Reuse |
 | Local files / config | Guides, checklists, cache | Ours | New |
 
@@ -45,15 +45,19 @@ proxy: `Host.proxy("api.poe2scout.com/...")` → `main/src/proxy.ts`. This works
 Electron overlay, the hub window and the browser QA mode (the page is served by the
 Electron HTTP server).
 
-Planned Phase 3 hook in `main/src/proxy.ts`:
+Implemented Phase 3 hook in `main/src/proxy.ts` (append-only blocks):
 
 ```ts
-// MT: BEGIN mt-proxy
-// allow the economy provider + send a contactable UA for that host only
-// MT: END mt-proxy
+// MT: BEGIN mt-proxy-host
+// poe2scout economy provider (read-only, courtesy API; see DATA_SOURCES.md).
+{ host: "api.poe2scout.com", official: false },
+// MT: END mt-proxy-host
 ```
 
-Upstream behavior for GGG/ninja hosts stays untouched.
+plus a `mt-proxy-ua` block that sends the contactable UA only when
+`host === "api.poe2scout.com"`. Upstream behavior for GGG/ninja hosts stays untouched.
+The renderer calls `/proxy/api.poe2scout.com/...` directly (no WS/IPC dependency in the
+hub).
 
 ### 2.3 Endpoints (verified)
 
@@ -82,13 +86,31 @@ Base: `https://api.poe2scout.com`. `{realm}` for PoE2 is **`poe2`** (from `/Real
 
 `*` = required. Observed league response fields include `Value`, `ShortName`,
 `IsCurrent`, `DivinePrice`, `ChaosDivinePrice`, `BaseCurrencyApiId`,
-`BaseCurrencyText`, `BaseCurrencyIconUrl`, `ExaltedCurrencyText`, ... (full shape to be
-locked by recorded fixtures in Phase 3).
+`BaseCurrencyText`, `BaseCurrencyIconUrl`, `ExaltedCurrencyText`, ... (shapes are locked
+by recorded fixtures in `renderer/specs/mt/economy/fixtures/`).
+
+**Verified constraints (2026-10-28):**
+
+- `ByCategory` accepts only `dataPoints` **7 or 8**; anything else returns
+  `"DataPoints must be 7 or 8."`. The hub requests `dataPoints=7` (daily `PriceLogs` are in
+  the table payload) and uses per-item history for longer ranges.
+- `Items/{itemId}/History?logCount=N` returns hourly `PriceHistory` points plus `HasMore`.
+  `itemId` is the numeric provider `ItemId`, not the string `ApiId` (e.g. `295`, not
+  `"divine"`). Retention observed is ~53 days, so a 90d request (`logCount=2160`) can clip
+  to the retained window; the UI simply renders what is returned.
+- `Currencies/Pairs/{a}/{b}/History` returned an empty `History` array for every pair tried
+  (string and numeric ids) on 2026-10-28. The hub does not use pair history.
+- `Items/Categories` → `CurrencyCategories[].ApiId` supplies the category list
+  (`currency`, `fragments`, `runes`, ...); ids are never hardcoded.
+- 7d chart points come from daily `PriceLogs` in the `ByCategory` row; 30d/90d use
+  `Items/{itemId}/History` with `logCount` 720/2160.
 
 Live data is volatile: on 2026-10-26 `/poe2/Leagues` returned `Forbidden Rites` as current.
 **Never hardcode leagues, realms, category ids or currency ids.** Resolve them at runtime;
-default to the league the user already selected in EE2 (`useLeagues()` / `Config.leagueId`)
-when it exists in the provider's list, otherwise the provider's `IsCurrent` league.
+prefer the league the user already selected in EE2 (`Config.leagueId`) when it exists in the
+provider's list, otherwise the provider's `IsCurrent` league. The hub deliberately does not
+call upstream `useLeagues()` (it would pull the overlay config/widget registry and
+`sockette` into the hub).
 
 ### 2.4 Caching & rate policy
 
@@ -100,24 +122,25 @@ File-backed cache (survives restarts, not origin-scoped):
 
 | Data | TTL | Notes |
 | --- | --- | --- |
-| `/Realms` | 7 days | rarely changes |
-| Leagues | 24 h | also refresh on league-selection errors |
-| Reference currencies | 24 h | |
+| `/Realms` | 24 h | discover the PoE2 `RealmApiId` |
+| Leagues | 24 h | |
+| Categories + reference currencies | 24 h | |
 | Currency tables (`ByCategory`) | 15 min | stale-while-revalidate |
-| Exchange snapshot / pairs | 5 min | |
-| Pair/snapshot history | 1 h | |
-| Items index / categories | 24 h | |
-| Item history / daily stats | 1 h | |
+| Item history (30d/90d charts) | 1 h | |
 
-Runtime rules:
+Only these endpoints are used. `ExchangeSnapshot`, `SnapshotPairs`, `SnapshotHistory`,
+`Items/PriceHistory`, `DailyStatsHistory` and `Uniques/*` are not called, so they need no
+TTL.
 
-- One in-flight request per provider; minimum 1 s spacing between requests.
-- Honor `Retry-After` on `429`/`503`; exponential backoff (2 s, 4 s, 8 s, then stop and
-  show cached data). Never retry more than 3 times per user action.
+Runtime rules (implemented in `renderer/src/mt/economy/queue.ts` and `store.ts`):
+
+- One in-flight request per provider; minimum 1 s spacing between request starts.
+- Honor `Retry-After` on `429`/`5xx`; otherwise exponential backoff 2 s, 4 s, 8 s. At most 3
+  retries (4 attempts total); a `Retry-After` over 60 s aborts instead of freezing the UI.
 - No background polling when the hub window is closed. Refresh on open/focus or explicit
   "Refresh".
-- Send conditional requests when the server provides validators (observed
-  `Last-Modified`), and reuse the cached payload on `304`.
+- Conditional requests via `If-Modified-Since`; a `304` reuses the cached payload and
+  refreshes `savedAt`.
 - UI always shows **"last updated"** from `savedAt` and a clear **offline/stale** badge.
 - Do not bypass or modify upstream trade `RateLimiter`; this queue is separate and only
   for the economy provider.
@@ -128,17 +151,20 @@ Runtime rules:
 - `docs/DATA_SOURCES.md` (this file) is linked from the hub's About/Help.
 - Do not imply endorsement by poe2scout or GGG.
 
-### 2.6 Open items for Phase 3
+### 2.6 Resolved in Phase 3
 
-- Max values / accepted ranges for `perPage`, `limit`, `dayCount`, `dataPoints`
-  (test conservatively: `perPage=50`, `limit=100`).
-- Stable category ids (`currency` verified; confirm others) and `referenceCurrency`
-  defaults per league.
-- Response shapes and error format for: unknown league, private league, empty league.
-- Whether `ETag` is served in addition to `Last-Modified`.
-- Whether history points are ordered and what unit `endEpoch`/`endTime` expects.
-- Record one fixture per endpoint, trimmed and anonymized, into
-  `renderer/specs/mt/economy/fixtures/`.
+- `dataPoints` on `ByCategory` must be 7 or 8 (see §2.3); the table uses 7.
+- Category ids come from `Items/Categories`; no category list is hardcoded.
+- Reference currencies come from `ReferenceCurrencies`; `null` means provider default.
+- Item history is hourly and uses the numeric `ItemId`; pair history is empty and unused.
+- Only `Last-Modified` was observed (no `ETag`); conditional requests reuse the cache on
+  304. Error shapes for unknown/private leagues are handled by the generic 4xx path;
+  schema/empty-payload failures surface as a visible error, never a silent empty table.
+- Fixtures for every used endpoint live in `renderer/specs/mt/economy/fixtures/` with
+  `.meta.json` request metadata.
+
+Remaining to watch: retention for 90d charts (~53 days observed) and any future provider
+change to the `dataPoints` rule. Re-record fixtures if the OpenAPI document changes.
 
 ---
 
