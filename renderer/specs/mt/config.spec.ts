@@ -37,7 +37,9 @@ describe("mt config", () => {
   });
 
   it("clears the hotkey on an explicit null", () => {
-    const base = mergeMtConfig(defaultMtConfig(), { hubHotkey: "Ctrl + Alt + H" });
+    const base = mergeMtConfig(defaultMtConfig(), {
+      hubHotkey: "Ctrl + Alt + H",
+    });
     const next = mergeMtConfig(base, { hubHotkey: null });
 
     expect(next.hubHotkey).toBeNull();
@@ -45,7 +47,8 @@ describe("mt config", () => {
 
   it("normalizes hotkey spelling and rejects modifier-only chords", () => {
     expect(
-      mergeMtConfig(defaultMtConfig(), { hubHotkey: "ctrl + alt + h" }).hubHotkey,
+      mergeMtConfig(defaultMtConfig(), { hubHotkey: "ctrl + alt + h" })
+        .hubHotkey,
     ).toBe("Ctrl + Alt + H");
     expect(
       mergeMtConfig(defaultMtConfig(), { hubHotkey: "Alt + Shift + F5" })
@@ -88,10 +91,39 @@ describe("mt config", () => {
     expect(mt.economy.lastCategory).toBe("fragments");
   });
 
+  it("keeps the resolved realm and league but never the provider source", () => {
+    const mt = mergeMtConfig(defaultMtConfig(), {
+      economy: {
+        source: "poe.ninja",
+        realm: " poe2 ",
+        league: "Forbidden Rites",
+        referenceCurrency: "divine",
+      },
+    });
+
+    expect(mt.economy.source).toBe("poe2scout");
+    expect(mt.economy.realm).toBe("poe2");
+    expect(mt.economy.league).toBe("Forbidden Rites");
+    expect(mt.economy.referenceCurrency).toBe("divine");
+  });
+
+  it("clears economy selections on explicit null and clamps text", () => {
+    const base = mergeMtConfig(defaultMtConfig(), {
+      economy: { realm: "poe2", league: "Forbidden Rites" },
+    });
+    const cleared = mergeMtConfig(base, {
+      economy: { realm: null, league: null, lastCategory: "x".repeat(200) },
+    });
+
+    expect(cleared.economy.realm).toBeNull();
+    expect(cleared.economy.league).toBeNull();
+    expect(cleared.economy.lastCategory).toHaveLength(64);
+  });
+
   it("keeps guide progress numeric only", () => {
     const mt = mergeMtConfig(defaultMtConfig(), {
       guides: {
-        progress: { "act-1": 3, broken: "3", "": 1 },
+        progress: { "act-1": 3, "broken": "3", "": 1 },
         lastOpened: "act-1",
       },
     });
@@ -101,7 +133,8 @@ describe("mt config", () => {
   });
 
   it("sanitizing a stored subtree always pins the mt schema version", () => {
-    expect(sanitizeMtConfig({ ...defaultMtConfig(), configVersion: 99 }))
-      .toMatchObject({ configVersion: MT_CONFIG_VERSION });
+    expect(
+      sanitizeMtConfig({ ...defaultMtConfig(), configVersion: 99 }),
+    ).toMatchObject({ configVersion: MT_CONFIG_VERSION });
   });
 });

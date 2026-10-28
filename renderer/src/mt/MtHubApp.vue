@@ -10,8 +10,12 @@
         <span class="text-xs text-gray-500">{{ t("app.subtitle") }}</span>
       </div>
       <div class="flex items-center gap-3 text-xs text-gray-500">
-        <span v-if="saved" class="text-emerald-400">{{ t("common.saved") }}</span>
-        <span v-if="host">{{ t("app.version", { version: host.version }) }}</span>
+        <span v-if="saved" class="text-emerald-400">{{
+          t("common.saved")
+        }}</span>
+        <span v-if="host">{{
+          t("app.version", { version: host.version })
+        }}</span>
         <button
           type="button"
           class="rounded border border-gray-700 px-2 py-0.5 text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-200"
@@ -24,7 +28,9 @@
     </header>
 
     <div class="flex min-h-0 flex-1">
-      <nav class="flex w-56 shrink-0 flex-col gap-1 border-r border-gray-800 p-2">
+      <nav
+        class="flex w-56 shrink-0 flex-col gap-1 border-r border-gray-800 p-2"
+      >
         <button
           v-for="module in mtModules"
           :key="module.id"
@@ -32,7 +38,11 @@
           :class="navClass(view === 'module' && activeId === module.id)"
           @click="openModule(module.id)"
         >
-          <i :class="module.icon" class="w-4 text-center" aria-hidden="true"></i>
+          <i
+            :class="module.icon"
+            class="w-4 text-center"
+            aria-hidden="true"
+          ></i>
           <span>{{ t(module.titleKey) }}</span>
         </button>
 
@@ -75,7 +85,13 @@
           @change="save"
         />
 
-        <component :is="activeModule.component" v-else :key="activeModule.id" />
+        <component
+          :is="activeModule.component"
+          v-else
+          :key="activeModule.id"
+          :config="config!"
+          @change="save"
+        />
       </main>
     </div>
   </div>

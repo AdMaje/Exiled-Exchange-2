@@ -1,0 +1,30 @@
+{
+  "UniqueCategories": [
+    {
+      "ItemCategoryId": 1,
+      "ApiId": "accessory",
+      "Label": "Accessories",
+      "Icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvUmluZ3MvVW5pcXVlcy9BbmR2YXJpdXMiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/62ed73e3a0/Andvarius.png"
+    }
+  ],
+  "CurrencyCategories": [
+    {
+      "CurrencyCategoryId": 21,
+      "ApiId": "currency",
+      "Label": "Currency",
+      "Icon": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lVcGdyYWRlVG9NYWdpY1NoYXJkIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/e67bca229b/CurrencyUpgradeToMagicShard.png"
+    },
+    {
+      "CurrencyCategoryId": 22,
+      "ApiId": "fragments",
+      "Label": "Fragments",
+      "Icon": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQnJlYWNoL0JyZWFjaHN0b25lU3BsaW50ZXIiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/4abb17ea8e/BreachstoneSplinter.png"
+    },
+    {
+      "CurrencyCategoryId": 23,
+      "ApiId": "runes",
+      "Label": "Runes",
+      "Icon": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUnVuZXMvRmlyZVJ1bmVUaWVyMSIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/fdc8d95dd7/FireRuneTier1.png"
+    }
+  ]
+}

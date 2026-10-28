@@ -4,6 +4,12 @@ import type { IncomingMessage, Server, ServerResponse } from "http";
 import { app } from "electron";
 import { isPlainObject, MT_CONFIG_VERSION } from "../../../ipc/mt";
 import { mtStore } from "./MtConfigStore";
+import {
+  MAX_MT_CACHE_BYTES,
+  normalizeMtCacheKey,
+  readMtCacheEntry,
+  writeMtCacheEntry,
+} from "./cache";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -37,7 +43,7 @@ async function handleMtRequest(
   res: ServerResponse,
   onConfigSaved: (contents: string) => void,
 ): Promise<void> {
-  const pathname = req.url?.split("?")[0];
+  const pathname = req.url?.split("?")[0] ?? "";
   res.setHeader("cache-control", "no-store");
 
   if (pathname === "/mt/config") {
@@ -84,17 +90,70 @@ async function handleMtRequest(
     return;
   }
 
+  const cacheMatch = /^\/mt\/cache\/([^/]+)$/.exec(pathname);
+  if (cacheMatch) {
+    const key = normalizeMtCacheKey(decodeURIComponent(cacheMatch[1]));
+    if (!key) {
+      sendJson(res, 400, { error: "invalid-cache-key" });
+      return;
+    }
+
+    if (req.method === "GET") {
+      const entry = await readMtCacheEntry(key);
+      if (entry === null) {
+        sendJson(res, 404, { error: "cache-miss" });
+        return;
+      }
+      sendJson(res, 200, entry);
+      return;
+    }
+
+    if (req.method === "PUT") {
+      let body: string;
+      try {
+        body = await readBody(req, MAX_MT_CACHE_BYTES);
+      } catch {
+        sendJson(res, 413, { error: "payload-too-large" });
+        return;
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        sendJson(res, 400, { error: "invalid-json" });
+        return;
+      }
+
+      if (!isPlainObject(parsed)) {
+        sendJson(res, 400, { error: "invalid-cache-payload" });
+        return;
+      }
+
+      await writeMtCacheEntry(key, parsed);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    res.setHeader("allow", "GET, PUT");
+    sendJson(res, 405, { error: "method-not-allowed" });
+    return;
+  }
+
   sendJson(res, 404, { error: "not-found" });
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(
+  req: IncomingMessage,
+  limit = MAX_BODY_BYTES,
+): Promise<string> {
   return await new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
 
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > limit) {
         reject(new Error("payload-too-large"));
         req.destroy();
         return;

@@ -1,0 +1,9 @@
+{
+  "History": [],
+  "Meta": {
+    "HasMore": false
+  },
+  "BaseCurrencyApiId": "exalted",
+  "BaseCurrencyBaseItemTypeId": "Metadata/Items/Currency/CurrencyAddModToRare",
+  "BaseCurrencyText": "Exalted Orb"
+}

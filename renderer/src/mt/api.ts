@@ -34,6 +34,37 @@ export async function saveMtConfig(
   });
 }
 
+/** Read a file-backed cache entry; `null` when the key was never written. */
+export async function readMtCache(key: string): Promise<unknown | null> {
+  const response = await fetch(`/mt/cache/${encodeURIComponent(key)}`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new MtApiError(
+      `MT cache read failed: ${key} (${response.status})`,
+      response.status,
+    );
+  }
+  return (await response.json()) as unknown;
+}
+
+/** Persist a cache envelope (size-capped by the main process). */
+export async function writeMtCache(key: string, value: unknown): Promise<void> {
+  const response = await fetch(`/mt/cache/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(value),
+  });
+  if (!response.ok) {
+    throw new MtApiError(
+      `MT cache write failed: ${key} (${response.status})`,
+      response.status,
+    );
+  }
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", ...init });
   if (!response.ok) {

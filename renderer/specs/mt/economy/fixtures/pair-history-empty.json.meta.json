@@ -1,0 +1,6 @@
+{
+  "url": "https://api.poe2scout.com/poe2/Leagues/Forbidden%20Rites/Currencies/Pairs/exalted/divine/History?limit=90",
+  "status": 200,
+  "collected": "2026-10-28",
+  "note": "Empty History/Meta.HasMore false; the chart falls back to PriceLogs from ByCategory."
+}

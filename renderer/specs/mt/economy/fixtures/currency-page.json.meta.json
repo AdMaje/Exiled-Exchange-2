@@ -1,0 +1,6 @@
+{
+  "url": "https://api.poe2scout.com/poe2/Leagues/Forbidden%20Rites/Currencies/ByCategory?category=currency&page=1&perPage=50&dataPoints=7&frequencyHours=24",
+  "status": 200,
+  "collected": "2026-10-28",
+  "note": "Three currency rows, PriceLogs trimmed to first/middle/last; Total kept from the live response."
+}

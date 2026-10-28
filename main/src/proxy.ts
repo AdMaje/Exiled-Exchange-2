@@ -16,6 +16,10 @@ const PROXY_HOSTS = [
   { host: "www.poeprices.info", official: false },
   // me :)
   { host: "api.exiledexchange2.dev", official: false },
+  // MT: BEGIN mt-proxy-host
+  // poe2scout economy provider (read-only, courtesy API; see DATA_SOURCES.md).
+  { host: "api.poe2scout.com", official: false },
+  // MT: END mt-proxy-host
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
@@ -47,7 +51,14 @@ export class HttpProxy {
         method: req.method,
         headers: {
           ...req.headers,
-          "user-agent": app.userAgentFallback,
+          // MT: BEGIN mt-proxy-ua
+          // Contactable User-Agent for the economy provider only (D1); every
+          // other host keeps the upstream UA untouched.
+          "user-agent":
+            host === "api.poe2scout.com"
+              ? `Poe2MultiTool/${app.getVersion()} (+https://github.com/AdMaje/Exiled-Exchange-2)`
+              : app.userAgentFallback,
+          // MT: END mt-proxy-ua
         },
         useSessionCookies: true,
         referrerPolicy: "no-referrer-when-downgrade",

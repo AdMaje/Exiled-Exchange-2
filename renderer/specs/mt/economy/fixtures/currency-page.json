@@ -1,0 +1,127 @@
+{
+  "CurrentPage": 1,
+  "Pages": 1,
+  "Total": 38,
+  "Items": [
+    {
+      "CurrencyItemId": 18,
+      "ItemId": 295,
+      "CurrencyCategoryId": 21,
+      "ApiId": "mirror",
+      "BaseItemTypeId": "Metadata/Items/Currency/CurrencyDuplicate",
+      "Text": "Mirror of Kalandra",
+      "CategoryApiId": "currency",
+      "IconUrl": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lEdXBsaWNhdGUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/26bc31680e/CurrencyDuplicate.png",
+      "ItemMetadata": {
+        "name": "Mirror of Kalandra",
+        "base_type": "Mirror of Kalandra",
+        "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lEdXBsaWNhdGUiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/b7f5cc7884/CurrencyDuplicate.png",
+        "stack_size": 1,
+        "max_stack_size": 10,
+        "description": "Right click this item then left click an equipable non-unique item to apply it. Mirrored copies cannot be modified.",
+        "effect": [
+          "Creates a Mirrored copy of an item"
+        ]
+      },
+      "PriceLogs": [
+        {
+          "Price": 4365648.5,
+          "Time": "2026-10-28T00:00:00.0000000Z",
+          "Quantity": 182
+        },
+        {
+          "Price": 4146147.5,
+          "Time": "2026-10-25T00:00:00.0000000Z",
+          "Quantity": 390
+        },
+        {
+          "Price": 4369302,
+          "Time": "2026-10-22T00:00:00.0000000Z",
+          "Quantity": 474
+        }
+      ],
+      "CurrentPrice": 4536798.5,
+      "CurrentQuantity": 23
+    },
+    {
+      "CurrencyItemId": 271,
+      "ItemId": 4287,
+      "CurrencyCategoryId": 21,
+      "ApiId": "hinekoras-lock",
+      "BaseItemTypeId": "Metadata/Items/Currency/CurrencyHinekorasLock",
+      "Text": "Hinekora's Lock",
+      "CategoryApiId": "currency",
+      "IconUrl": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvSGluZWtvcmFzTG9jayIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/ab2163ae06/HinekorasLock.png",
+      "ItemMetadata": {
+        "name": "Hinekora's Lock",
+        "base_type": "Hinekora's Lock",
+        "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvSGluZWtvcmFzTG9jayIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/40f6bbbb39/HinekorasLock.png",
+        "stack_size": 1,
+        "max_stack_size": 10,
+        "description": "Right click this item then left click an item to apply it.",
+        "effect": [
+          "Allows an item to foresee the result of the next Currency item used on it\nModifying the item in any way removes the ability to foresee"
+        ]
+      },
+      "PriceLogs": [
+        {
+          "Price": 1443274,
+          "Time": "2026-10-28T00:00:00.0000000Z",
+          "Quantity": 183
+        },
+        {
+          "Price": 1402233.1,
+          "Time": "2026-10-25T00:00:00.0000000Z",
+          "Quantity": 385
+        },
+        {
+          "Price": 1496904.6,
+          "Time": "2026-10-22T00:00:00.0000000Z",
+          "Quantity": 463
+        }
+      ],
+      "CurrentPrice": 1536248.2,
+      "CurrentQuantity": 32
+    },
+    {
+      "CurrencyItemId": 17,
+      "ItemId": 294,
+      "CurrencyCategoryId": 21,
+      "ApiId": "fracturing-orb",
+      "BaseItemTypeId": "Metadata/Items/Currency/CurrencyFractureRare",
+      "Text": "Fracturing Orb",
+      "CategoryApiId": "currency",
+      "IconUrl": "https://web.poecdn.com//gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRnJhY3R1cmluZ09yYiIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/8b85ed1dc2/FracturingOrb.png",
+      "ItemMetadata": {
+        "name": "Fracturing Orb",
+        "base_type": "Fracturing Orb",
+        "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRnJhY3R1cmluZ09yYiIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/c88bcda072/FracturingOrb.png",
+        "stack_size": 1,
+        "max_stack_size": 20,
+        "description": "Right click this item then left click a rare item to apply it. Cannot be used on Fractured items.",
+        "effect": [
+          "Fracture a random modifier on a rare item with at least 4 modifiers, locking it in place."
+        ]
+      },
+      "PriceLogs": [
+        {
+          "Price": 5669.506,
+          "Time": "2026-10-28T00:00:00.0000000Z",
+          "Quantity": 8286
+        },
+        {
+          "Price": 6913.9287,
+          "Time": "2026-10-25T00:00:00.0000000Z",
+          "Quantity": 20490
+        },
+        {
+          "Price": 8595.043,
+          "Time": "2026-10-22T00:00:00.0000000Z",
+          "Quantity": 18742
+        }
+      ],
+      "CurrentPrice": 5804.982,
+      "CurrentQuantity": 884
+    }
+  ]
+}

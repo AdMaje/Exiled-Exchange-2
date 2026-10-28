@@ -1,0 +1,6 @@
+{
+  "url": "https://api.poe2scout.com/poe2/Leagues/Forbidden%20Rites/Items/295/History?logCount=7&referenceCurrency=divine",
+  "status": 200,
+  "collected": "2026-10-28",
+  "note": "Hourly PriceHistory for Mirror of Kalandra priced in divine. HasMore true (older points exist)."
+}

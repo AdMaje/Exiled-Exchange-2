@@ -26,6 +26,10 @@ export interface MtFavoriteCurrency {
 
 export interface MtEconomyConfig {
   source: "poe2scout";
+  /** Provider realm api id, resolved from `/Realms` (never hardcoded). */
+  realm: string | null;
+  /** Provider league name, resolved from `/{realm}/Leagues` (never hardcoded). */
+  league: string | null;
   referenceCurrency: string | null;
   favorites: MtFavoriteCurrency[];
   lastCategory: string;
@@ -62,6 +66,8 @@ export function defaultMtConfig(): MtConfig {
     hub: { width: 1100, height: 760, x: null, y: null },
     economy: {
       source: "poe2scout",
+      realm: null,
+      league: null,
       referenceCurrency: null,
       favorites: [],
       lastCategory: "currency",
@@ -70,7 +76,9 @@ export function defaultMtConfig(): MtConfig {
   };
 }
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -126,8 +134,11 @@ export function normalizeHotkey(hotkey: string): string | null {
   const key = keys[0];
   if (!key || !(key in KeyToCode) || isModKey(key)) return null;
 
-  const mods = [ctrl ? "Ctrl" : "", shift ? "Shift" : "", alt ? "Alt" : ""]
-    .filter(Boolean);
+  const mods = [
+    ctrl ? "Ctrl" : "",
+    shift ? "Shift" : "",
+    alt ? "Alt" : "",
+  ].filter(Boolean);
   return [...mods, key].join(" + ");
 }
 
@@ -196,18 +207,21 @@ function sanitizeHotkey(
 }
 
 function sanitizeLanguage(value: unknown, fallback: MtLanguage): MtLanguage {
-  return value === "auto" || value === "en" || value === "pl" ? value : fallback;
+  return value === "auto" || value === "en" || value === "pl"
+    ? value
+    : fallback;
 }
 
-function sanitizeBounds(
-  value: unknown,
-  fallback: MtHubBounds,
-): MtHubBounds {
+function sanitizeBounds(value: unknown, fallback: MtHubBounds): MtHubBounds {
   if (!isPlainObject(value)) return fallback;
 
   return {
     width: Math.round(
-      clamp(numberOr(value.width, fallback.width), HUB_MIN_WIDTH, HUB_MAX_WIDTH),
+      clamp(
+        numberOr(value.width, fallback.width),
+        HUB_MIN_WIDTH,
+        HUB_MAX_WIDTH,
+      ),
     ),
     height: Math.round(
       clamp(
@@ -221,10 +235,7 @@ function sanitizeBounds(
   };
 }
 
-function sanitizeCoord(
-  value: unknown,
-  fallback: number | null,
-): number | null {
+function sanitizeCoord(value: unknown, fallback: number | null): number | null {
   if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
 
@@ -239,6 +250,12 @@ function sanitizeEconomy(
 
   return {
     source: "poe2scout",
+    realm:
+      value.realm === null ? null : sanitizeText(value.realm, fallback.realm),
+    league:
+      value.league === null
+        ? null
+        : sanitizeText(value.league, fallback.league),
     referenceCurrency:
       value.referenceCurrency === null
         ? null

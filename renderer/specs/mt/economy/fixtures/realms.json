@@ -1,0 +1,18 @@
+[
+  {
+    "Value": "poe1/pc",
+    "Label": "poe1/pc",
+    "GameApiId": "poe",
+    "RealmApiId": "pc",
+    "TradeApiPath": "trade",
+    "DefaultLeagueValue": "Mirage"
+  },
+  {
+    "Value": "poe2/poe2",
+    "Label": "poe2/poe2",
+    "GameApiId": "poe2",
+    "RealmApiId": "poe2",
+    "TradeApiPath": "trade2",
+    "DefaultLeagueValue": "Fate of the Vaal"
+  }
+]
