@@ -12,6 +12,9 @@ import WidgetSettings from "../settings/SettingsWindow.vue";
 import WidgetXpTracker from "../leveling/WidgetXpTracker.vue";
 import WidgetNotepad from "../notepad/WidgetNotepad.vue";
 import WidgetLibrary from "../library/WidgetLibrary.vue";
+// MT: fork-owned overlay widgets (Phase 5).
+import WidgetMtCountdown from "@/mt/widgets/WidgetMtCountdown.vue";
+import WidgetMtZoneTracker from "@/mt/widgets/WidgetMtZoneTracker.vue";
 
 type WidgetComponent = Component & { widget: WidgetSpec };
 
@@ -37,3 +40,6 @@ registry.widgets.push(WidgetImageStrip as unknown as WidgetComponent);
 registry.widgets.push(WidgetDelveGrid as unknown as WidgetComponent);
 registry.widgets.push(WidgetNotepad as unknown as WidgetComponent);
 registry.widgets.push(WidgetLibrary as unknown as WidgetComponent);
+// MT: register fork-owned overlay widgets.
+registry.widgets.push(WidgetMtCountdown as unknown as WidgetComponent);
+registry.widgets.push(WidgetMtZoneTracker as unknown as WidgetComponent);

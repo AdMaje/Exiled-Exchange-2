@@ -142,6 +142,9 @@ import SettingsStopwatch from "../stopwatch/settings-stopwatch.vue";
 import SettingsItemSearch from "../item-search/settings-item-search.vue";
 import SettingsLeveling from "../leveling/settings-leveling.vue";
 import SettingsLibrary from "../library/settings-library.vue";
+// MT: fork-owned widget settings panels.
+import SettingsMtCountdown from "@/mt/widgets/SettingsMtCountdown.vue";
+import SettingsMtZoneTracker from "@/mt/widgets/SettingsMtZoneTracker.vue";
 import { disableWidget, enableWidget, findWidget } from "./utils";
 
 function shuffle<T>(array: T[]): T[] {
@@ -349,6 +352,11 @@ function menuByType(type?: string) {
       return [[SettingsItemSearch]];
     case "library":
       return [[SettingsLibrary]];
+    // MT: fork-owned widget settings panels.
+    case "mt-countdown":
+      return [[SettingsMtCountdown]];
+    case "mt-zone-tracker":
+      return [[SettingsMtZoneTracker]];
     default:
       return [
         [SettingsHotkeys, SettingsChat],

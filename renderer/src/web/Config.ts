@@ -4,6 +4,8 @@ import { Host } from "@/web/background/IPC";
 import { HostConfig, ShortcutAction } from "@ipc/types";
 // MT: fork-owned settings subtree (see ipc/mt.ts).
 import { defaultMtConfig, MtConfig } from "@ipc/mt";
+// MT: fork-owned single-instance widget upgrade hook.
+import { ensureMtSingleWidgets } from "@/mt/widgets/types";
 import type * as widget from "./overlay/widgets";
 import type { StashSearchWidget } from "./stash-search/widget";
 import type { ItemCheckWidget } from "./item-check/widget";
@@ -696,6 +698,8 @@ function upgradeConfig(_config: Config): Config {
 
   // MT: fork-owned settings subtree; idempotent, no upstream configVersion bump.
   config.mt ??= defaultMtConfig();
+  // MT: keep the single-instance fork widgets present on upgraded configs.
+  ensureMtSingleWidgets(config.widgets);
 
   return config as unknown as Config;
 }

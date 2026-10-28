@@ -26,7 +26,15 @@ export default {
     },
     widgets: {
       title: "Widgety",
-      body: "Liczniki czasu i tracker strefy/poziomu w overlayu są planowane na etap 5.",
+      body: "Dostępne są dwa widgety overlayu: ręczny licznik czasu oraz tracker strefy/poziomu.",
+      countdownTitle: "MT Countdown",
+      countdownBody:
+        "Dodaj go z menu widgetów overlayu (⋯ → Dodaj). Etykietę i długość ustawisz w ustawieniach widgetu; start, pauza i reset są na widgecie.",
+      zoneTitle: "MT Zone Tracker",
+      zoneBody:
+        "Pojedynczy, zawsze dostępny tracker. Włącz go z menu widgetów overlayu; odczytuje zmiany strefy i poziomu ze wspólnego strumienia Client.txt.",
+      howTo:
+        "Wszystko jest lokalnym stanem interfejsu: żadne naciśnięcie klawisza nie trafia do gry, a licznik nie reaguje na log.",
     },
   },
   guides: {
@@ -96,6 +104,32 @@ export default {
     favorites: {
       add: "Dodaj do ulubionych",
       remove: "Usuń z ulubionych",
+    },
+  },
+  overlay: {
+    countdown: {
+      label: "Etykieta",
+      defaultLabel: "Licznik",
+      durationSeconds: "Czas (sekundy)",
+      showProgress: "Pokaż pasek postępu",
+      start: "Start",
+      pause: "Pauza",
+      reset: "Reset",
+      finished: "Koniec",
+      hint: "Ręczny licznik działający lokalnie. Nie reaguje na log gry i nie wysyła żadnego wejścia do gry.",
+    },
+    zone: {
+      area: "Strefa",
+      areaLevelShort: "poz. {level}",
+      playerLevelShort: "ty {level}",
+      showAreaLevel: "Pokaż poziom strefy",
+      showPlayerLevel: "Pokaż poziom gracza",
+      clientLogOff:
+        "Włącz „Czytaj log klienta” w ustawieniach overlayu, aby śledzić strefy.",
+      lastNonTown:
+        "Pokazuje ostatnią strefę poza miastem. Miasta i kryjówki są pomijane przez wspólny parser Client.txt.",
+      settingsHint:
+        "Używa tego samego strumienia Client.txt co tracker XP; nie uruchamia drugiego obserwatora logu.",
     },
   },
   placeholder: {

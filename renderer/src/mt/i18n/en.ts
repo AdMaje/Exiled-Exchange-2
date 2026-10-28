@@ -26,7 +26,15 @@ export default {
     },
     widgets: {
       title: "Widgets",
-      body: "Countdown timers and a zone/level tracker inside the overlay are planned for Phase 5.",
+      body: "Two overlay widgets are included: a manual countdown and a zone/level tracker.",
+      countdownTitle: "MT Countdown",
+      countdownBody:
+        "Add it from the overlay widget menu (⋯ → Add). Set the label and length in its settings; start, pause and reset from the widget.",
+      zoneTitle: "MT Zone Tracker",
+      zoneBody:
+        "A single always-available tracker. Enable it from the overlay widget menu; it reads area and level changes from the shared Client.txt stream.",
+      howTo:
+        "Everything is local UI state: no keystroke is sent to the game and no timer is triggered by the log.",
     },
   },
   guides: {
@@ -96,6 +104,32 @@ export default {
     favorites: {
       add: "Add to favorites",
       remove: "Remove from favorites",
+    },
+  },
+  overlay: {
+    countdown: {
+      label: "Label",
+      defaultLabel: "Countdown",
+      durationSeconds: "Duration (seconds)",
+      showProgress: "Show progress bar",
+      start: "Start",
+      pause: "Pause",
+      reset: "Reset",
+      finished: "Finished",
+      hint: "A manual, local-only timer. It never reacts to the game log or sends input to the game.",
+    },
+    zone: {
+      area: "Area",
+      areaLevelShort: "lvl {level}",
+      playerLevelShort: "you {level}",
+      showAreaLevel: "Show area level",
+      showPlayerLevel: "Show player level",
+      clientLogOff:
+        "Turn on “Read client log” in the overlay settings to track zones.",
+      lastNonTown:
+        "Shows the last non-town area. Towns and hideouts are skipped by the shared Client.txt parser.",
+      settingsHint:
+        "Uses the same Client.txt stream as the XP tracker; no second log watcher is started.",
     },
   },
   placeholder: {
