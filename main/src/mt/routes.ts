@@ -10,6 +10,15 @@ import {
   readMtCacheEntry,
   writeMtCacheEntry,
 } from "./cache";
+import {
+  MtGuideError,
+  listUserGuides,
+  readUserGuide,
+  revealGuidesFolder,
+  revealUserGuide,
+  writeUserGuide,
+} from "./guides";
+import { MT_GUIDE_MAX_BYTES } from "../../../ipc/mtGuides";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -28,14 +37,22 @@ export function addMtRoutes(
 
     if (!req.url?.startsWith("/mt/")) return;
 
-    handleMtRequest(req, res, onConfigSaved).catch(() => {
+    handleMtRequest(req, res, onConfigSaved).catch((error) => {
       if (res.headersSent) {
         res.end();
+      } else if (error instanceof MtGuideError) {
+        sendJson(res, guideStatus(error.code), { error: error.code });
       } else {
         sendJson(res, 500, { error: "internal-error" });
       }
     });
   });
+}
+
+function guideStatus(code: MtGuideError["code"]): number {
+  if (code === "not-found") return 404;
+  if (code === "too-large") return 413;
+  return 400;
 }
 
 async function handleMtRequest(
@@ -82,6 +99,74 @@ async function handleMtRequest(
       if (saved.broadcast) onConfigSaved(saved.broadcast);
 
       sendJson(res, 200, { mt: saved.mt });
+      return;
+    }
+
+    res.setHeader("allow", "GET, PUT");
+    sendJson(res, 405, { error: "method-not-allowed" });
+    return;
+  }
+
+  if (pathname === "/mt/guides/index.json") {
+    if (req.method !== "GET") {
+      res.setHeader("allow", "GET");
+      sendJson(res, 405, { error: "method-not-allowed" });
+      return;
+    }
+    sendJson(res, 200, { guides: await listUserGuides() });
+    return;
+  }
+
+  if (pathname === "/mt/guides/reveal.json") {
+    if (req.method !== "POST") {
+      res.setHeader("allow", "POST");
+      sendJson(res, 405, { error: "method-not-allowed" });
+      return;
+    }
+    await revealGuidesFolder();
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  const guideRevealMatch =
+    /^\/mt\/guides\/([a-z0-9][a-z0-9-_]{0,63})\.md\/reveal\.json$/.exec(
+      pathname,
+    );
+  if (guideRevealMatch) {
+    if (req.method !== "POST") {
+      res.setHeader("allow", "POST");
+      sendJson(res, 405, { error: "method-not-allowed" });
+      return;
+    }
+    await revealUserGuide(guideRevealMatch[1]);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  const guideFileMatch = /^\/mt\/guides\/([a-z0-9][a-z0-9-_]{0,63})\.md$/.exec(
+    pathname,
+  );
+  if (guideFileMatch) {
+    const slug = guideFileMatch[1];
+
+    if (req.method === "GET") {
+      const content = await readUserGuide(slug);
+      res.statusCode = 200;
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.end(content);
+      return;
+    }
+
+    if (req.method === "PUT") {
+      let body: string;
+      try {
+        body = await readBody(req, MT_GUIDE_MAX_BYTES);
+      } catch {
+        sendJson(res, 413, { error: "payload-too-large" });
+        return;
+      }
+      const entry = await writeUserGuide(slug, body);
+      sendJson(res, 200, { guide: entry });
       return;
     }
 

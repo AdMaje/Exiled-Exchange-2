@@ -29,6 +29,31 @@ export default {
       body: "Liczniki czasu i tracker strefy/poziomu w overlayu są planowane na etap 5.",
     },
   },
+  guides: {
+    subtitle:
+      "Wbudowane i lokalne poradniki Markdown. Listy zadań są zapisywane w ustawieniach forka.",
+    search: "Szukaj poradników",
+    newPlaceholder: "Tytuł nowego poradnika",
+    create: "Nowy",
+    refresh: "Odśwież",
+    openFolder: "Otwórz folder",
+    noResults: "Żaden poradnik nie pasuje do wyszukiwania.",
+    empty: "Wybierz poradnik z listy.",
+    user: "własny",
+    bundled: "wbudowany",
+    edit: "Edytuj",
+    reveal: "Pokaż w Eksploratorze",
+    save: "Zapisz",
+    cancel: "Anuluj",
+    editHint:
+      "Nagłówek jest opcjonalny; umieść `title` i `tags` w bloku `---`.",
+    progress: "{checked}/{total}",
+    errorIndex:
+      "Nie udało się wczytać własnych poradników. Wbudowane są nadal dostępne.",
+    errorSave: "Nie udało się zapisać poradnika.",
+    errorCreate: "Nie udało się utworzyć poradnika.",
+    errorReveal: "Nie udało się otworzyć folderu poradników.",
+  },
   economy: {
     title: "Rynek walut",
     attribution:

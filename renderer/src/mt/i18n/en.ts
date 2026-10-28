@@ -29,6 +29,31 @@ export default {
       body: "Countdown timers and a zone/level tracker inside the overlay are planned for Phase 5.",
     },
   },
+  guides: {
+    subtitle:
+      "Bundled and local Markdown guides. Checklists are saved in the fork settings.",
+    search: "Search guides",
+    newPlaceholder: "New guide title",
+    create: "New",
+    refresh: "Reload",
+    openFolder: "Open folder",
+    noResults: "No guide matches the search.",
+    empty: "Select a guide from the list.",
+    user: "user",
+    bundled: "bundled",
+    edit: "Edit",
+    reveal: "Show in Explorer",
+    save: "Save",
+    cancel: "Cancel",
+    editHint:
+      "Frontmatter is optional; wrap `title` and `tags` in a `---` block.",
+    progress: "{checked}/{total}",
+    errorIndex:
+      "Could not read user guides. Bundled guides are still available.",
+    errorSave: "Could not save the guide.",
+    errorCreate: "Could not create the guide.",
+    errorReveal: "Could not open the guide folder.",
+  },
   economy: {
     title: "Currency market",
     attribution:
